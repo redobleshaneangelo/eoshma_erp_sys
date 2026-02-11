@@ -12,6 +12,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\OvertimeRateController;
 use App\Http\Controllers\OvertimeRequestController;
 use App\Http\Controllers\EmployeeScheduleController;
+use App\Http\Controllers\PayrollGroupController;
 
 
 /*
@@ -81,6 +82,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/payroll-runs/{payrollRun}/release-payslip', [PayrollRunController::class, 'releasePayslip']);
     Route::post('/payroll-runs/{payrollRun}/eligibilities', [PayrollRunController::class, 'updateEligibility']);
     Route::post('/payroll-runs/{payrollRun}/eligibilities/bulk', [PayrollRunController::class, 'bulkEligibility']);
+
+    Route::get('/payroll-groups', [PayrollGroupController::class, 'index']);
+    Route::post('/payroll-groups', [PayrollGroupController::class, 'store']);
 
     Route::get('/timekeeping/days', [TimekeepingController::class, 'days']);
     Route::get('/timekeeping/days/{date}', [TimekeepingController::class, 'dayDetail']);

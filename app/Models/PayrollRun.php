@@ -15,6 +15,7 @@ class PayrollRun extends Model
         'start_date',
         'end_date',
         'group',
+        'payroll_group_id',
         'status',
         'pay_date',
         'description'
@@ -27,5 +28,10 @@ class PayrollRun extends Model
             'end_date' => 'date',
             'pay_date' => 'date'
         ];
+    }
+
+    public function payrollGroup()
+    {
+        return $this->belongsTo(PayrollGroup::class, 'payroll_group_id');
     }
 }

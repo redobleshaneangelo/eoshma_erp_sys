@@ -3,13 +3,20 @@
     <div class="ps-60 bg-[#F3F4F6] min-h-screen">
         <div class="px-10 py-10 space-y-6">
             <div class="flex flex-wrap items-center justify-between gap-4">
-                <button
-                    v-if="activeTab === 'payroll_runs'"
-                    @click="showCreateModal = true"
-                    class="inline-flex items-center ms-auto gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0c8ce9] hover:bg-blue-700 rounded-lg transition-colors"
-                >
-                    Create Payroll Run
-                </button>
+                <div class="flex flex-wrap items-center gap-3 ms-auto" v-if="activeTab === 'payroll_runs'">
+                    <button
+                        @click="openPayrollConfiguration"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#0c8ce9] border border-[#0c8ce9] hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                        Payroll Configuration
+                    </button>
+                    <button
+                        @click="showCreateModal = true"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#0c8ce9] hover:bg-blue-700 rounded-lg transition-colors"
+                    >
+                        Create Payroll Run
+                    </button>
+                </div>
             </div>
 
             <div class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
@@ -150,15 +157,12 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Group</label>
-                    <select
+                    <input
                         v-model="newPayrollRun.group"
+                        type="text"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
-                    >
-                        <option value="">Select group</option>
-                        <option value="fixed">Fixed</option>
-                        <option value="hour">Hour</option>
-                        <option value="day">Day</option>
-                    </select>
+                        placeholder="Enter payroll group label"
+                    />
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Pay Date</label>
@@ -257,6 +261,10 @@ const fetchPayrollRuns = async () => {
     } catch (error) {
         console.error('Failed to load payroll runs', error)
     }
+}
+
+const openPayrollConfiguration = () => {
+    router.push({ name: 'payroll_configuration' })
 }
 
 const newPayrollRun = ref({

@@ -14,6 +14,7 @@ class EmployeeTest extends Model
 
     protected $fillable = [
         'user_id',
+        'payroll_group_id',
         'position',
         'rate',
         'hourly_rate'
@@ -40,6 +41,11 @@ class EmployeeTest extends Model
     public function schedules()
     {
         return $this->hasMany(EmployeeSchedule::class, 'employee_id');
+    }
+
+    public function payrollGroup()
+    {
+        return $this->belongsTo(PayrollGroup::class, 'payroll_group_id');
     }
 
     public function user()

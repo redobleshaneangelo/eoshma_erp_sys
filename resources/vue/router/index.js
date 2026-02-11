@@ -56,6 +56,7 @@ import QRScanner from '@/components/HR/Attendance/QRScanner.vue'
 import Payroll from '@/views/Pages/HR/Payroll/Payroll.vue'
 import PayrollRunDetail from '@/views/Pages/HR/Payroll/PayrollRunDetail.vue'
 import ComputedPayroll from '@/views/Pages/HR/Payroll/ComputedPayroll.vue'
+import PayrollConfiguration from '@/views/Pages/HR/Payroll/PayrollConfiguration.vue'
 
 import LeaveAndAbsence from '@/views/Pages/HR/Leave and Absence/LeaveAndAbsence.vue'
 import LeaveRequestDetail from '@/views/Pages/HR/Leave and Absence/LeaveRequestDetail.vue'
@@ -191,6 +192,7 @@ const routes = [
 
     // Payroll
     { path: '/payroll', name: 'payroll', component: Payroll, meta: { requiresAuth: true } },
+    { path: '/payroll/configuration', name: 'payroll_configuration', component: PayrollConfiguration, meta: { requiresAuth: true } },
     { path: '/payroll/runs/:id', name: 'payroll_run_detail', component: PayrollRunDetail, meta: { requiresAuth: true } },
     { path: '/payroll/runs/:id/view', name: 'payroll_run_view', component: PayrollRunDetail, meta: { requiresAuth: true } },
     { path: '/payroll/runs/:id/computed', name: 'computed_payroll', component: ComputedPayroll, meta: { requiresAuth: true } },

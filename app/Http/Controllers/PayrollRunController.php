@@ -11,6 +11,7 @@ use App\Models\PayrollRunEligibility;
 use App\Models\StatutoryCompliance;
 use App\Models\OvertimeRate;
 use App\Models\OvertimeRequest;
+use App\Models\PayrollGroup;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -44,6 +45,14 @@ class PayrollRunController extends Controller
             $validated['status'] = 'Draft';
         }
 
+        $payrollGroup = PayrollGroup::query()
+            ->where('name', $validated['group'])
+            ->first();
+
+        if ($payrollGroup) {
+            $validated['payroll_group_id'] = $payrollGroup->id;
+        }
+
         $payrollRun = PayrollRun::create($validated);
 
         return response()->json([
@@ -65,9 +74,28 @@ class PayrollRunController extends Controller
             ->where('payroll_run_id', $payrollRun->id)
             ->pluck('is_eligible', 'employee_id');
 
-        $grouped = $rows->groupBy('employee_id')->map(function ($items) use ($payrollRun) {
+        $overtimeRates = OvertimeRate::query()->get()->keyBy('day_type');
+        $overtimeRequests = OvertimeRequest::query()
+            ->where('status', 'Approved')
+            ->whereBetween('request_date', [$payrollRun->start_date, $payrollRun->end_date])
+            ->get()
+            ->groupBy('employee_id');
+
+        $grouped = $rows->groupBy('employee_id')->map(function ($items) use ($payrollRun, $eligibility, $overtimeRequests, $overtimeRates) {
             $employee = $items->first()->employee;
             $totalMinutes = $this->totalMinutes($items);
+            $employeeOvertime = $overtimeRequests->get($employee->id, collect());
+            $hourlyRate = $employee->hourly_rate ?? $employee->rate;
+            $overtimeHours = $employeeOvertime->sum(function ($item) {
+                return $item->approved_hours ?? $item->hours;
+            });
+            $overtimePay = $employeeOvertime->sum(function ($item) use ($hourlyRate, $overtimeRates) {
+                $hours = $item->approved_hours ?? $item->hours;
+                $multiplier = $item->approved_multiplier
+                    ?? $overtimeRates->get($item->day_type)?->multiplier
+                    ?? 0;
+                return $hours * $hourlyRate * $multiplier;
+            });
 
             return [
                 'id' => $employee->id,
@@ -76,6 +104,8 @@ class PayrollRunController extends Controller
                 'rate' => $employee->rate,
                 'daysLogged' => $items->count(),
                 'totalHours' => round($totalMinutes / 60, 2),
+                'overtimeHours' => round($overtimeHours, 2),
+                'overtimePay' => round($overtimePay, 2),
                 'isEligible' => (bool) ($eligibility[$employee->id] ?? false),
                 'records' => $items->map(function ($item) use ($payrollRun) {
                     return [

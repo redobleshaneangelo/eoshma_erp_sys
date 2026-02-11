@@ -71,6 +71,8 @@
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Rate</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Days Logged</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Total Hours</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">OT Hours</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">OT Pay</th>
                                         <th v-if="isPending && isApprovalMode" class="px-4 py-3 text-left text-xs font-semibold text-gray-700">
                                             <div class="flex items-center gap-2">
                                                 Eligible
@@ -95,6 +97,8 @@
                                         <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(employee.rate) }}</td>
                                         <td class="px-4 py-3 text-sm text-gray-700">{{ employee.daysLogged }}</td>
                                         <td class="px-4 py-3 text-sm text-gray-700">{{ employee.totalHours }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">{{ employee.overtimeHours }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(employee.overtimePay) }}</td>
                                         <td v-if="isPending && isApprovalMode" class="px-4 py-3 text-sm text-gray-700">
                                             <input
                                                 type="checkbox"
@@ -114,7 +118,7 @@
                                         </td>
                                     </tr>
                                     <tr v-if="attendanceSummary.length === 0">
-                                        <td :colspan="isPending && isApprovalMode ? 6 : 5" class="px-4 py-8 text-center text-sm text-gray-500">No attendance summary available.</td>
+                                        <td :colspan="isPending && isApprovalMode ? 8 : 7" class="px-4 py-8 text-center text-sm text-gray-500">No attendance summary available.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -804,6 +808,8 @@ const mapAttendance = (payload) => ({
     rate: payload.rate,
     daysLogged: payload.daysLogged,
     totalHours: payload.totalHours,
+    overtimeHours: payload.overtimeHours ?? 0,
+    overtimePay: payload.overtimePay ?? 0,
     isEligible: payload.isEligible,
     records: payload.records || [],
     incidents: payload.incidents || []
