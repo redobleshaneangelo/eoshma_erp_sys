@@ -9,6 +9,8 @@ use App\Models\Deduction;
 use App\Models\PayrollRun;
 use App\Models\PayrollRunEligibility;
 use App\Models\StatutoryCompliance;
+use App\Models\OvertimeRate;
+use App\Models\OvertimeRequest;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -65,7 +67,7 @@ class PayrollRunController extends Controller
 
         $grouped = $rows->groupBy('employee_id')->map(function ($items) use ($payrollRun) {
             $employee = $items->first()->employee;
-                $totalMinutes = $this->totalMinutes($items);
+            $totalMinutes = $this->totalMinutes($items);
 
             return [
                 'id' => $employee->id,
@@ -418,11 +420,18 @@ class PayrollRunController extends Controller
             ->get()
             ->groupBy('employee_id');
 
+        $overtimeRates = OvertimeRate::query()->get()->keyBy('day_type');
+        $overtimeRequests = OvertimeRequest::query()
+            ->where('status', 'Approved')
+            ->whereBetween('request_date', [$payrollRun->start_date, $payrollRun->end_date])
+            ->get()
+            ->groupBy('employee_id');
+
         $periodsPerYear = $this->periodsPerYear($payrollRun->frequency);
         $totalGross = 0;
         $totalTax = 0;
 
-        $computed = $grouped->map(function ($items, $employeeId) use ($payrollRun, $allowances, $deductions, $periodsPerYear, &$totalGross, &$totalTax) {
+        $computed = $grouped->map(function ($items, $employeeId) use ($payrollRun, $allowances, $deductions, $overtimeRequests, $overtimeRates, $periodsPerYear, &$totalGross, &$totalTax) {
             $employee = $items->first()->employee ?? EmployeeTest::find($employeeId);
             if (!$employee) {
                 return null;
@@ -436,7 +445,20 @@ class PayrollRunController extends Controller
             $allowanceTotal = $allowances->get($employeeId, collect())->sum('amount');
             $deductionTotal = $deductions->get($employeeId, collect())->sum('amount');
 
-            $grossPay = $basicPay + $allowanceTotal - $deductionTotal;
+            $employeeOvertime = $overtimeRequests->get($employeeId, collect());
+            $hourlyRate = $employee->hourly_rate ?? $employee->rate;
+            $overtimeHours = $employeeOvertime->sum(function ($item) {
+                return $item->approved_hours ?? $item->hours;
+            });
+            $overtimePay = $employeeOvertime->sum(function ($item) use ($hourlyRate, $overtimeRates) {
+                $hours = $item->approved_hours ?? $item->hours;
+                $multiplier = $item->approved_multiplier
+                    ?? $overtimeRates->get($item->day_type)?->multiplier
+                    ?? 0;
+                return $hours * $hourlyRate * $multiplier;
+            });
+
+            $grossPay = $basicPay + $allowanceTotal + $overtimePay - $deductionTotal;
             $taxableAnnual = $grossPay * $periodsPerYear;
             $annualTax = $this->calculateAnnualTax($taxableAnnual);
             $tax = $periodsPerYear > 0 ? round($annualTax / $periodsPerYear, 2) : 0;
@@ -451,6 +473,8 @@ class PayrollRunController extends Controller
                 'role' => $employee->position,
                 'basicPay' => round($basicPay, 2),
                 'allowance' => round($allowanceTotal, 2),
+                'overtimeHours' => round($overtimeHours, 2),
+                'overtimePay' => round($overtimePay, 2),
                 'deductions' => round($deductionTotal + $tax, 2),
                 'tax' => round($tax, 2),
                 'netPay' => round($netPay, 2)

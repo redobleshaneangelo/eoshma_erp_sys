@@ -7,6 +7,15 @@
             </div>
             <div class="flex items-center gap-3">
                 <button
+                    @click="openOvertimeModal"
+                    class="px-5 py-2.5 bg-amber-500 text-white rounded-lg font-semibold text-sm hover:bg-amber-600 transition-colors flex items-center gap-2"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Request OT
+                </button>
+                <button
                     @click="openQRModal"
                     class="px-5 py-2.5 bg-[#0c8ce9] text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
                 >
@@ -378,6 +387,158 @@
                 </div>
             </div>
         </div>
+
+        <div v-if="showOvertimeModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full">
+                <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-gray-800">Overtime Request</h2>
+                    <button
+                        @click="closeOvertimeModal"
+                        class="text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-6 space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Date</label>
+                        <input
+                            v-model="overtimeForm.request_date"
+                            type="date"
+                            :min="minOvertimeDate"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Requests must be filed at least one day ahead.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Hours</label>
+                        <input
+                            v-model="overtimeForm.hours"
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            max="24"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Approved hours will be computed from schedule and attendance.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
+                        <input
+                            v-model="overtimeForm.start_time"
+                            type="time"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Choose when overtime begins after your shift.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Day Type</label>
+                        <select
+                            v-model="overtimeForm.day_type"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        >
+                            <option value="" disabled>Select day type</option>
+                            <option v-for="rate in overtimeRates" :key="rate.day_type" :value="rate.day_type">
+                                {{ rate.label }} (x{{ rate.multiplier }})
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Reason</label>
+                        <textarea
+                            v-model="overtimeForm.reason"
+                            rows="3"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            placeholder="Optional reason"
+                        ></textarea>
+                    </div>
+                    <div class="border-t border-gray-200 pt-4">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <h3 class="text-sm font-semibold text-gray-700">Pending Requests</h3>
+                            <button
+                                type="button"
+                                @click="openOvertimeHistoryModal"
+                                class="text-xs font-semibold text-[#0c8ce9] hover:underline"
+                            >
+                                View Approved/Rejected
+                            </button>
+                        </div>
+                        <div v-if="pendingOvertimeRequests.length" class="space-y-2 max-h-40 overflow-y-auto">
+                            <div
+                                v-for="item in pendingOvertimeRequests"
+                                :key="item.id"
+                                class="flex items-center justify-between text-sm text-gray-700"
+                            >
+                                <div>
+                                    {{ item.date }} • {{ item.dayTypeLabel }} • {{ item.startTime || '--' }} • {{ item.hours }}h
+                                </div>
+                                <span class="text-xs font-semibold" :class="item.status === 'Approved' ? 'text-green-600' : item.status === 'Rejected' ? 'text-red-600' : 'text-amber-600'">
+                                    {{ item.status }}
+                                </span>
+                            </div>
+                        </div>
+                        <div v-else class="text-xs text-gray-500">No pending requests.</div>
+                    </div>
+                </div>
+                <div class="border-t border-gray-200 px-6 py-4 flex justify-end gap-2">
+                    <button
+                        @click="closeOvertimeModal"
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="submitOvertimeRequest"
+                        class="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600"
+                    >
+                        Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showOvertimeHistoryModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full">
+                <div class="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-gray-800">Approved & Rejected Requests</h2>
+                    <button
+                        @click="closeOvertimeHistoryModal"
+                        class="text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-6 py-6">
+                    <div v-if="historyOvertimeRequests.length" class="space-y-2 max-h-64 overflow-y-auto">
+                        <div
+                            v-for="item in historyOvertimeRequests"
+                            :key="item.id"
+                            class="flex items-center justify-between text-sm text-gray-700"
+                        >
+                            <div>
+                                {{ item.date }} • {{ item.dayTypeLabel }} • {{ item.startTime || '--' }} • {{ item.hours }}h
+                            </div>
+                            <span class="text-xs font-semibold" :class="item.status === 'Approved' ? 'text-green-600' : 'text-red-600'">
+                                {{ item.status }}
+                            </span>
+                        </div>
+                    </div>
+                    <div v-else class="text-sm text-gray-500">No approved or rejected requests yet.</div>
+                </div>
+                <div class="border-t border-gray-200 px-6 py-4 flex justify-end">
+                    <button
+                        @click="closeOvertimeHistoryModal"
+                        class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -400,6 +561,25 @@
     const currentPage = ref(1)
     const pageSize = ref(10)
     const showQRModal = ref(false)
+    const showOvertimeModal = ref(false)
+    const showOvertimeHistoryModal = ref(false)
+    const overtimeRates = ref([])
+    const overtimeRequests = ref([])
+    const pendingOvertimeRequests = computed(() => {
+        return overtimeRequests.value.filter(item => item.status === 'Pending')
+    })
+
+    const historyOvertimeRequests = computed(() => {
+        return overtimeRequests.value.filter(item => item.status === 'Approved' || item.status === 'Rejected')
+    })
+
+    const overtimeForm = ref({
+        request_date: '',
+        hours: '',
+        day_type: '',
+        start_time: '',
+        reason: ''
+    })
     const qrPayload = ref('')
     const qrError = ref('')
     const qrLoading = ref(false)
@@ -528,6 +708,37 @@
         router.push({ name: 'attendance_scan', query: { mode } })
     }
 
+    const minOvertimeDate = computed(() => {
+        const d = new Date()
+        d.setDate(d.getDate() + 1)
+        return d.toLocaleDateString('en-CA')
+    })
+
+    const openOvertimeModal = async () => {
+        showOvertimeModal.value = true
+        overtimeForm.value = {
+            request_date: minOvertimeDate.value,
+            hours: '',
+            day_type: '',
+            start_time: '',
+            reason: ''
+        }
+        await fetchOvertimeRates()
+        await fetchOvertimeRequests()
+    }
+
+    const closeOvertimeModal = () => {
+        showOvertimeModal.value = false
+    }
+
+    const openOvertimeHistoryModal = () => {
+        showOvertimeHistoryModal.value = true
+    }
+
+    const closeOvertimeHistoryModal = () => {
+        showOvertimeHistoryModal.value = false
+    }
+
     const getLocalDate = () => {
         return new Date().toLocaleDateString('en-CA')
     }
@@ -555,6 +766,49 @@
 
     const closeQRModal = () => {
         showQRModal.value = false
+    }
+
+    const fetchOvertimeRates = async () => {
+        try {
+            const response = await axios.get('/api/overtime-rates')
+            const rows = response.data?.data || []
+            overtimeRates.value = rows.filter(rate => rate.is_active)
+        } catch (error) {
+            console.error('Failed to load overtime rates', error)
+        }
+    }
+
+    const fetchOvertimeRequests = async () => {
+        try {
+            const response = await axios.get('/api/overtime-requests')
+            overtimeRequests.value = response.data?.data || []
+        } catch (error) {
+            console.error('Failed to load overtime requests', error)
+        }
+    }
+
+    const submitOvertimeRequest = async () => {
+        try {
+            await axios.post('/api/overtime-requests', overtimeForm.value)
+            await fetchOvertimeRequests()
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'Overtime request submitted',
+                showConfirmButton: false,
+                timer: 2000
+            })
+            closeOvertimeModal()
+        } catch (error) {
+            const message = error.response?.data?.message || 'Failed to submit overtime request.'
+            Swal.fire({
+                icon: 'error',
+                title: 'Submission failed',
+                text: message,
+                confirmButtonColor: '#ef4444'
+            })
+        }
     }
 
     const generateQRCode = () => {

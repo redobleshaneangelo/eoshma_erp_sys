@@ -9,6 +9,9 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PayrollRunController;
 use App\Http\Controllers\TimekeepingController;
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\OvertimeRateController;
+use App\Http\Controllers\OvertimeRequestController;
+use App\Http\Controllers\EmployeeScheduleController;
 
 
 /*
@@ -86,6 +89,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/attendance/records', [AttendanceController::class, 'records']);
     Route::patch('/attendance/records/{date}', [AttendanceController::class, 'updateRecord']);
     Route::get('/attendance/qr', [AttendanceController::class, 'qrCode']);
+
+    Route::get('/overtime-rates', [OvertimeRateController::class, 'index']);
+    Route::put('/overtime-rates/{overtimeRate}', [OvertimeRateController::class, 'update']);
+
+    Route::get('/overtime-requests', [OvertimeRequestController::class, 'index']);
+    Route::post('/overtime-requests', [OvertimeRequestController::class, 'store']);
+    Route::put('/overtime-requests/{overtimeRequest}/cancel', [OvertimeRequestController::class, 'cancel']);
+
+    Route::get('/employee-schedules', [EmployeeScheduleController::class, 'index']);
+    Route::post('/employee-schedules', [EmployeeScheduleController::class, 'store']);
+
+    Route::get('/pending-approvals/hr/overtime', [OvertimeRequestController::class, 'pending']);
+    Route::put('/pending-approvals/hr/overtime/{overtimeRequest}/approve', [OvertimeRequestController::class, 'approve']);
+    Route::put('/pending-approvals/hr/overtime/{overtimeRequest}/reject', [OvertimeRequestController::class, 'reject']);
 
 
 

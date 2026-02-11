@@ -15,19 +15,31 @@ class EmployeeTest extends Model
     protected $fillable = [
         'user_id',
         'position',
-        'rate'
+        'rate',
+        'hourly_rate'
     ];
 
     protected function casts(): array
     {
         return [
-            'rate' => 'decimal:2'
+            'rate' => 'decimal:2',
+            'hourly_rate' => 'decimal:2'
         ];
     }
 
     public function attendances()
     {
         return $this->hasMany(EmployeeAttendance::class, 'employee_id');
+    }
+
+    public function overtimeRequests()
+    {
+        return $this->hasMany(OvertimeRequest::class, 'employee_id');
+    }
+
+    public function schedules()
+    {
+        return $this->hasMany(EmployeeSchedule::class, 'employee_id');
     }
 
     public function user()
