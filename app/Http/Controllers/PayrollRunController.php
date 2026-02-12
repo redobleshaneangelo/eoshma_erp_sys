@@ -12,6 +12,7 @@ use App\Models\StatutoryCompliance;
 use App\Models\OvertimeRate;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollGroup;
+use App\Models\UsersSalaryType;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -114,7 +115,6 @@ class PayrollRunController extends Controller
                         'timeOut' => $item->time_out,
                         'payrollStart' => $payrollRun->start_date->toDateString(),
                         'payrollEnd' => $payrollRun->end_date->toDateString(),
-                        'payrollType' => $item->payroll_type,
                         'payrollFrequency' => $item->payroll_frequency
                     ];
                 })->values(),
@@ -471,7 +471,9 @@ class PayrollRunController extends Controller
             $totalHours = round($totalMinutes / 60, 2);
             $daysLogged = $items->count();
 
-            $basicPay = $this->basicPay($payrollRun->group, $employee->rate, $daysLogged, $totalHours);
+            $employee->loadMissing('user.salaryType');
+            $salaryType = $employee->user?->salaryType?->salary_type ?? 'hour';
+            $basicPay = $this->basicPay($salaryType, $employee->rate, $daysLogged, $totalHours);
             $allowanceTotal = $allowances->get($employeeId, collect())->sum('amount');
             $deductionTotal = $deductions->get($employeeId, collect())->sum('amount');
 
@@ -528,7 +530,11 @@ class PayrollRunController extends Controller
         return EmployeeAttendance::query()
             ->with('employee')
             ->whereBetween('attendance_date', [$payrollRun->start_date, $payrollRun->end_date])
-            ->where('payroll_type', $payrollRun->group)
+            ->when($payrollRun->payroll_group_id, function ($query) use ($payrollRun) {
+                $query->whereHas('employee', function ($employeeQuery) use ($payrollRun) {
+                    $employeeQuery->where('payroll_group_id', $payrollRun->payroll_group_id);
+                });
+            })
             ->when($payrollRun->frequency, function ($query) use ($payrollRun) {
                 $query->where('payroll_frequency', $payrollRun->frequency);
             })
@@ -548,9 +554,9 @@ class PayrollRunController extends Controller
         });
     }
 
-    private function basicPay(string $group, float $rate, int $daysLogged, float $totalHours): float
+    private function basicPay(string $salaryType, float $rate, int $daysLogged, float $totalHours): float
     {
-        return match ($group) {
+        return match ($salaryType) {
             'day' => $daysLogged * $rate,
             'fixed' => $rate,
             default => $totalHours * $rate

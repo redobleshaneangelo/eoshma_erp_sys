@@ -19,7 +19,6 @@ class EmployeeAttendance extends Model
         'time_out_photo_path',
         'payroll_start',
         'payroll_end',
-        'payroll_type',
         'payroll_frequency'
     ];
 

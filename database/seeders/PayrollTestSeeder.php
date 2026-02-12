@@ -11,6 +11,8 @@ use App\Models\PayrollRun;
 use App\Models\StatutoryCompliance;
 use App\Models\Department;
 use App\Models\UsersHasBranch;
+use App\Models\PayrollGroup;
+use App\Models\UsersSalaryType;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -86,6 +88,17 @@ class PayrollTestSeeder extends Seeder
         $employees = collect();
         $index = 0;
         $employeesPerCombo = 2;
+
+        $payrollGroups = PayrollGroup::query()->get()->keyBy('salary_type');
+        foreach ($payrollTypes as $type) {
+            if (!$payrollGroups->has($type)) {
+                $payrollGroups[$type] = PayrollGroup::create([
+                    'name' => ucfirst($type) . ' Group',
+                    'salary_type' => $type
+                ]);
+            }
+        }
+
         foreach ($payrollTypes as $type) {
             foreach ($frequencies as $frequency) {
                 for ($i = 0; $i < $employeesPerCombo; $i++) {
@@ -129,10 +142,16 @@ class PayrollTestSeeder extends Seeder
                     $employees->push(EmployeeTest::updateOrCreate(
                         ['user_id' => $user->id],
                         [
+                            'payroll_group_id' => $payrollGroups[$type]->id,
                             'position' => $positions[$index] ?? 'Staff',
                             'rate' => $rate
                         ]
                     ));
+
+                    UsersSalaryType::updateOrCreate(
+                        ['user_id' => $user->id],
+                        ['salary_type' => $type]
+                    );
                     $index++;
                 }
             }
@@ -170,7 +189,6 @@ class PayrollTestSeeder extends Seeder
                     'time_out' => $timeOut,
                     'payroll_start' => $payrollStart->toDateString(),
                     'payroll_end' => $payrollEnd->toDateString(),
-                    'payroll_type' => $type,
                     'payroll_frequency' => $frequency
                 ]);
             }
@@ -184,7 +202,8 @@ class PayrollTestSeeder extends Seeder
                     'frequency' => 'Bi-Weekly',
                     'start_date' => '2026-02-01',
                     'end_date' => '2026-02-15',
-                    'group' => 'hour',
+                    'group' => 'Hour Group',
+                    'payroll_group_id' => $payrollGroups['hour']->id,
                     'status' => 'Draft',
                     'pay_date' => '2026-02-20',
                     'description' => 'Seeded payroll run for testing.'
@@ -195,8 +214,12 @@ class PayrollTestSeeder extends Seeder
         foreach ($runs as $run) {
             $attendanceRows = EmployeeAttendance::query()
                 ->whereBetween('attendance_date', [$run->start_date, $run->end_date])
-                ->where('payroll_type', $run->group)
                 ->where('payroll_frequency', $run->frequency)
+                ->when($run->payroll_group_id, function ($query) use ($run) {
+                    $query->whereHas('employee', function ($employeeQuery) use ($run) {
+                        $employeeQuery->where('payroll_group_id', $run->payroll_group_id);
+                    });
+                })
                 ->get()
                 ->groupBy('employee_id');
 
@@ -229,7 +252,11 @@ class PayrollTestSeeder extends Seeder
                 $totalHours = round($totalMinutes / 60, 2);
                 $daysLogged = $items->count();
 
-                $basicPay = match ($run->group) {
+                $salaryType = UsersSalaryType::query()
+                    ->where('user_id', $employee->user_id)
+                    ->value('salary_type') ?? 'hour';
+
+                $basicPay = match ($salaryType) {
                     'day' => $daysLogged * $employee->rate,
                     'fixed' => $employee->rate,
                     default => $totalHours * $employee->rate

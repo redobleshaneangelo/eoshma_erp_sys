@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use Vinkla\Hashids\Facades\Hashids;
+use App\Models\UsersSalaryType;
 
 class User extends Authenticatable
 {
@@ -118,5 +119,10 @@ class User extends Authenticatable
     public function branches()
     {
         return $this->belongsToMany(Branch::class, 'users_has_branches');
+    }
+
+    public function salaryType()
+    {
+        return $this->hasOne(UsersSalaryType::class, 'user_id');
     }
 }

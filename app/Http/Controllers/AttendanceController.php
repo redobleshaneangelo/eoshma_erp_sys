@@ -117,7 +117,6 @@ class AttendanceController extends Controller
         $updateData = [
             'payroll_start' => $lastAttendance?->payroll_start?->toDateString() ?? $date,
             'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date,
-            'payroll_type' => $lastAttendance?->payroll_type ?? 'hour',
             'payroll_frequency' => $lastAttendance?->payroll_frequency ?? 'Weekly'
         ];
 
@@ -181,7 +180,6 @@ class AttendanceController extends Controller
                 'qr_payload' => $payload,
                 'payroll_start' => $lastAttendance?->payroll_start?->toDateString() ?? $date,
                 'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date,
-                'payroll_type' => $lastAttendance?->payroll_type ?? 'hour',
                 'payroll_frequency' => $lastAttendance?->payroll_frequency ?? 'Weekly'
             ]
         );
