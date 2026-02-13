@@ -124,19 +124,6 @@
                         placeholder="Enter payroll name"
                     />
                 </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Frequency</label>
-                    <select
-                        v-model="newPayrollRun.frequency"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
-                    >
-                        <option value="">Select frequency</option>
-                        <option value="Monthly">Monthly</option>
-                        <option value="Semi-Monthly">Semi-Monthly</option>
-                        <option value="Weekly">Weekly</option>
-                        <option value="Bi-Weekly">Bi-Weekly</option>
-                    </select>
-                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Start Date</label>
@@ -157,12 +144,15 @@
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Group</label>
-                    <input
-                        v-model="newPayrollRun.group"
-                        type="text"
+                    <select
+                        v-model="newPayrollRun.payrollGroupId"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
-                        placeholder="Enter payroll group label"
-                    />
+                    >
+                        <option value="">Select payroll group</option>
+                        <option v-for="group in payrollGroups" :key="group.id" :value="group.id">
+                            {{ group.name }} ({{ group.payrollFrequency }})
+                        </option>
+                    </select>
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">Pay Date</label>
@@ -215,6 +205,7 @@ const route = useRoute()
 onMounted(() => {
     auth.pageTitle = 'Payroll'
     fetchPayrollRuns()
+    fetchPayrollGroups()
     if (route.query.tab) {
         activeTab.value = String(route.query.tab)
     }
@@ -240,6 +231,7 @@ const activeTab = ref('payroll_runs')
 const showCreateModal = ref(false)
 
 const payrollRuns = ref([])
+const payrollGroups = ref([])
 
 const mapRun = (payload) => ({
     id: payload.id,
@@ -248,6 +240,7 @@ const mapRun = (payload) => ({
     startDate: payload.start_date,
     endDate: payload.end_date,
     group: payload.group,
+    payrollGroupId: payload.payroll_group_id,
     status: payload.status,
     payDate: payload.pay_date,
     description: payload.description
@@ -263,16 +256,24 @@ const fetchPayrollRuns = async () => {
     }
 }
 
+const fetchPayrollGroups = async () => {
+    try {
+        const response = await axios.get('/api/payroll-groups')
+        payrollGroups.value = response.data?.data || []
+    } catch (error) {
+        console.error('Failed to load payroll groups', error)
+    }
+}
+
 const openPayrollConfiguration = () => {
     router.push({ name: 'payroll_configuration' })
 }
 
 const newPayrollRun = ref({
     name: '',
-    frequency: '',
     startDate: '',
     endDate: '',
-    group: '',
+    payrollGroupId: '',
     status: 'Draft',
     payDate: '',
     description: ''
@@ -299,10 +300,9 @@ const createPayrollRun = async () => {
     try {
         const payload = {
             name: newPayrollRun.value.name,
-            frequency: newPayrollRun.value.frequency,
             start_date: newPayrollRun.value.startDate,
             end_date: newPayrollRun.value.endDate,
-            group: newPayrollRun.value.group,
+            payroll_group_id: newPayrollRun.value.payrollGroupId,
             status: newPayrollRun.value.status,
             pay_date: newPayrollRun.value.payDate,
             description: newPayrollRun.value.description
@@ -357,10 +357,9 @@ const closeCreateModal = () => {
     showCreateModal.value = false
     newPayrollRun.value = {
         name: '',
-        frequency: '',
         startDate: '',
         endDate: '',
-        group: '',
+        payrollGroupId: '',
         status: 'Draft',
         payDate: '',
         description: ''

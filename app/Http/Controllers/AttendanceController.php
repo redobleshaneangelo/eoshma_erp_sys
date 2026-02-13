@@ -116,8 +116,7 @@ class AttendanceController extends Controller
 
         $updateData = [
             'payroll_start' => $lastAttendance?->payroll_start?->toDateString() ?? $date,
-            'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date,
-            'payroll_frequency' => $lastAttendance?->payroll_frequency ?? 'Weekly'
+            'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date
         ];
 
         if ($request->has('time_in')) {
@@ -179,8 +178,7 @@ class AttendanceController extends Controller
             [
                 'qr_payload' => $payload,
                 'payroll_start' => $lastAttendance?->payroll_start?->toDateString() ?? $date,
-                'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date,
-                'payroll_frequency' => $lastAttendance?->payroll_frequency ?? 'Weekly'
+                'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date
             ]
         );
 
@@ -198,7 +196,8 @@ class AttendanceController extends Controller
             ['user_id' => $user->id],
             [
                 'position' => 'Employee',
-                'rate' => 80
+                'rate' => 80,
+                'payroll_frequency' => 'Weekly'
             ]
         );
     }

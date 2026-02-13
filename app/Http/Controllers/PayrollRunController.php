@@ -33,10 +33,9 @@ class PayrollRunController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'frequency' => ['required', 'string', 'max:255'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date'],
-            'group' => ['required', 'string', 'max:50'],
+            'payroll_group_id' => ['required', 'exists:payroll_groups,id'],
             'status' => ['nullable', 'string', 'max:50'],
             'pay_date' => ['required', 'date'],
             'description' => ['nullable', 'string', 'max:1000']
@@ -46,13 +45,10 @@ class PayrollRunController extends Controller
             $validated['status'] = 'Draft';
         }
 
-        $payrollGroup = PayrollGroup::query()
-            ->where('name', $validated['group'])
-            ->first();
-
-        if ($payrollGroup) {
-            $validated['payroll_group_id'] = $payrollGroup->id;
-        }
+        $payrollGroup = PayrollGroup::find($validated['payroll_group_id']);
+        $validated['group'] = $payrollGroup?->name ?? 'Payroll Group';
+        $validated['payroll_group_id'] = $payrollGroup?->id;
+        $validated['frequency'] = $payrollGroup?->payroll_frequency ?? 'Monthly';
 
         $payrollRun = PayrollRun::create($validated);
 
@@ -114,8 +110,7 @@ class PayrollRunController extends Controller
                         'timeIn' => $item->time_in,
                         'timeOut' => $item->time_out,
                         'payrollStart' => $payrollRun->start_date->toDateString(),
-                        'payrollEnd' => $payrollRun->end_date->toDateString(),
-                        'payrollFrequency' => $item->payroll_frequency
+                        'payrollEnd' => $payrollRun->end_date->toDateString()
                     ];
                 })->values(),
                 'incidents' => []
@@ -344,7 +339,57 @@ class PayrollRunController extends Controller
             ];
         });
 
-        return response()->json(['data' => $rows]);
+        $perEmployeeRows = [];
+        $rowId = 1;
+        foreach ($computed['rows'] as $employeeRow) {
+            $gross = (float) ($employeeRow['grossPay'] ?? 0);
+            $monthlyBase = $periodsPerYear > 0 ? ($gross * ($periodsPerYear / 12)) : $gross;
+            $base = $basis === 'period' ? $gross : $monthlyBase;
+            $philHealthBase = min($base, 100000);
+
+            $employeeRows = [
+                [
+                    'name' => 'SSS Contribution',
+                    'employeeShare' => round($base * 0.045, 2),
+                    'employerShare' => round($base * 0.095, 2)
+                ],
+                [
+                    'name' => 'PhilHealth Premium',
+                    'employeeShare' => round($philHealthBase * 0.025, 2),
+                    'employerShare' => round($philHealthBase * 0.025, 2)
+                ],
+                [
+                    'name' => 'Pag-IBIG Fund',
+                    'employeeShare' => round(min($base * 0.02, 100), 2),
+                    'employerShare' => round(min($base * 0.02, 100), 2)
+                ],
+                [
+                    'name' => 'Withholding Tax',
+                    'employeeShare' => round((float) ($employeeRow['tax'] ?? 0), 2),
+                    'employerShare' => 0
+                ]
+            ];
+
+            foreach ($employeeRows as $row) {
+                $perEmployeeRows[] = [
+                    'id' => $rowId++,
+                    'employeeId' => $employeeRow['id'] ?? null,
+                    'employeeName' => $employeeRow['employee'] ?? '--',
+                    'role' => $employeeRow['role'] ?? '--',
+                    'name' => $row['name'],
+                    'coverage' => $payrollRun->start_date->toDateString() . ' - ' . $payrollRun->end_date->toDateString(),
+                    'employeeShare' => $row['employeeShare'],
+                    'employerShare' => $row['employerShare'],
+                    'total' => $row['employeeShare'] + $row['employerShare'],
+                    'dueDate' => $dueDate
+                ];
+            }
+        }
+
+        return response()->json([
+            'data' => $rows,
+            'perEmployee' => $perEmployeeRows
+        ]);
     }
 
     public function computedPayroll(PayrollRun $payrollRun)
@@ -507,6 +552,7 @@ class PayrollRunController extends Controller
                 'allowance' => round($allowanceTotal, 2),
                 'overtimeHours' => round($overtimeHours, 2),
                 'overtimePay' => round($overtimePay, 2),
+                'grossPay' => round($grossPay, 2),
                 'deductions' => round($deductionTotal + $tax, 2),
                 'tax' => round($tax, 2),
                 'netPay' => round($netPay, 2)
@@ -536,7 +582,9 @@ class PayrollRunController extends Controller
                 });
             })
             ->when($payrollRun->frequency, function ($query) use ($payrollRun) {
-                $query->where('payroll_frequency', $payrollRun->frequency);
+                $query->whereHas('employee', function ($employeeQuery) use ($payrollRun) {
+                    $employeeQuery->where('payroll_frequency', $payrollRun->frequency);
+                });
             })
             ->orderBy('attendance_date')
             ->get();

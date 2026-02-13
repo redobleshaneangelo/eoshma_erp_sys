@@ -18,8 +18,7 @@ class EmployeeAttendance extends Model
         'time_in_photo_path',
         'time_out_photo_path',
         'payroll_start',
-        'payroll_end',
-        'payroll_frequency'
+        'payroll_end'
     ];
 
     protected function casts(): array

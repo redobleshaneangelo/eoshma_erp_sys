@@ -35,19 +35,28 @@
                         <table class="w-full">
                             <thead class="bg-gray-50 border-b border-gray-200">
                                 <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Name</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Group</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Group Name</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Frequency</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Members</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200">
                                 <tr v-for="group in payrollGroups" :key="group.id" class="hover:bg-gray-50">
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ group.name }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ formatSalaryType(group.salaryType) }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ group.payrollFrequency }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ group.members }}</td>
+                                    <td class="px-4 py-3">
+                                        <button
+                                            @click="openMembersModal(group)"
+                                            class="px-3 py-1 text-xs font-semibold text-white bg-[#0c8ce9] rounded hover:bg-blue-700"
+                                        >
+                                            View
+                                        </button>
+                                    </td>
                                 </tr>
                                 <tr v-if="payrollGroups.length === 0">
-                                    <td colspan="3" class="px-4 py-8 text-center text-sm text-gray-500">
+                                    <td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500">
                                         No payroll groups yet.
                                     </td>
                                 </tr>
@@ -73,24 +82,25 @@
             </div>
             <div class="p-6 space-y-4">
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Name</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Group Name</label>
                     <input
                         v-model="newGroup.name"
                         type="text"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
-                        placeholder="Enter payroll name"
+                        placeholder="Enter payroll group name"
                     />
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Group</label>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Payroll Frequency</label>
                     <select
-                        v-model="newGroup.salary_type"
+                        v-model="newGroup.payroll_frequency"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
                     >
-                        <option value="">Select salary type</option>
-                        <option value="fixed">Fixed</option>
-                        <option value="hour">Hour</option>
-                        <option value="day">Day</option>
+                        <option value="">Select frequency</option>
+                        <option value="Monthly">Monthly</option>
+                        <option value="Semi-Monthly">Semi-Monthly</option>
+                        <option value="Weekly">Weekly</option>
+                        <option value="Bi-Weekly">Bi-Weekly</option>
                     </select>
                 </div>
             </div>
@@ -110,6 +120,84 @@
             </div>
         </div>
     </div>
+
+    <div v-if="showMembersModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900">Payroll Group Members</h3>
+                        <p class="text-xs text-gray-500 mt-1">
+                            {{ selectedGroup.name }} · {{ selectedGroup.payrollFrequency }}
+                        </p>
+                    </div>
+                    <button @click="closeMembersModal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Frequency</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <tr v-for="member in groupMembers" :key="member.id" class="hover:bg-gray-50">
+                                <td class="px-4 py-3 text-sm text-gray-900">
+                                    <p class="font-semibold">{{ member.name }}</p>
+                                    <p class="text-xs text-gray-500">{{ member.position }}</p>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-gray-700">{{ member.payrollFrequency }}</td>
+                                <td class="px-4 py-3">
+                                    <span
+                                        class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                                        :class="member.inGroup ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                                    >
+                                        {{ member.inGroup ? 'In group' : 'Not added' }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3">
+                                    <button
+                                        v-if="!member.inGroup"
+                                        @click="addMember(member)"
+                                        class="px-3 py-1 text-xs font-semibold text-white bg-[#0c8ce9] rounded hover:bg-blue-700"
+                                    >
+                                        Add
+                                    </button>
+                                    <button
+                                        v-else
+                                        @click="removeMember(member)"
+                                        class="px-3 py-1 text-xs font-semibold text-red-700 border border-red-200 rounded hover:bg-red-50"
+                                    >
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="groupMembers.length === 0">
+                                <td colspan="4" class="px-4 py-8 text-center text-sm text-gray-500">No employees for this payroll frequency.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200">
+                <button
+                    @click="closeMembersModal"
+                    class="w-full px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                >
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
 </template>
 
 <script setup>
@@ -124,9 +212,12 @@ const auth = useAuthStore()
 const router = useRouter()
 const payrollGroups = ref([])
 const showCreateModal = ref(false)
+const showMembersModal = ref(false)
+const groupMembers = ref([])
+const selectedGroup = ref({})
 const newGroup = ref({
     name: '',
-    salary_type: ''
+    payroll_frequency: ''
 })
 
 const fetchGroups = async () => {
@@ -138,14 +229,9 @@ const fetchGroups = async () => {
     }
 }
 
-const formatSalaryType = (value) => {
-    if (!value) return '--'
-    return value.charAt(0).toUpperCase() + value.slice(1)
-}
-
 const closeCreateModal = () => {
     showCreateModal.value = false
-    newGroup.value = { name: '', salary_type: '' }
+    newGroup.value = { name: '', payroll_frequency: '' }
 }
 
 const goBack = () => {
@@ -170,6 +256,61 @@ const createPayrollGroup = async () => {
         Swal.fire({
             icon: 'error',
             title: 'Creation failed',
+            text: message,
+            confirmButtonColor: '#ef4444'
+        })
+    }
+}
+
+const openMembersModal = async (group) => {
+    selectedGroup.value = group
+    showMembersModal.value = true
+    await fetchMembers(group.id)
+}
+
+const closeMembersModal = () => {
+    showMembersModal.value = false
+    groupMembers.value = []
+    selectedGroup.value = {}
+}
+
+const fetchMembers = async (groupId) => {
+    try {
+        const response = await axios.get(`/api/payroll-groups/${groupId}/members`)
+        groupMembers.value = response.data?.data || []
+    } catch (error) {
+        console.error('Failed to load payroll group members', error)
+    }
+}
+
+const addMember = async (member) => {
+    try {
+        await axios.put(`/api/payroll-groups/${selectedGroup.value.id}/members`, {
+            employee_id: member.id
+        })
+        await fetchGroups()
+        await fetchMembers(selectedGroup.value.id)
+    } catch (error) {
+        const message = error.response?.data?.message || 'Failed to add member.'
+        Swal.fire({
+            icon: 'error',
+            title: 'Add failed',
+            text: message,
+            confirmButtonColor: '#ef4444'
+        })
+    }
+}
+
+const removeMember = async (member) => {
+    try {
+        await axios.delete(`/api/payroll-groups/${selectedGroup.value.id}/members/${member.id}`)
+        await fetchGroups()
+        await fetchMembers(selectedGroup.value.id)
+    } catch (error) {
+        const message = error.response?.data?.message || 'Failed to remove member.'
+        Swal.fire({
+            icon: 'error',
+            title: 'Remove failed',
             text: message,
             confirmButtonColor: '#ef4444'
         })

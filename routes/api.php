@@ -85,6 +85,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/payroll-groups', [PayrollGroupController::class, 'index']);
     Route::post('/payroll-groups', [PayrollGroupController::class, 'store']);
+    Route::get('/payroll-groups/{payrollGroup}/members', [PayrollGroupController::class, 'members']);
+    Route::put('/payroll-groups/{payrollGroup}/members', [PayrollGroupController::class, 'addMember']);
+    Route::delete('/payroll-groups/{payrollGroup}/members/{employee}', [PayrollGroupController::class, 'removeMember']);
 
     Route::get('/timekeeping/days', [TimekeepingController::class, 'days']);
     Route::get('/timekeeping/days/{date}', [TimekeepingController::class, 'dayDetail']);

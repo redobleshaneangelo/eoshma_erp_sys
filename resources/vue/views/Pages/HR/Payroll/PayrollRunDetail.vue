@@ -16,7 +16,7 @@
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900">{{ run.name }}</h1>
-                        <p class="text-sm text-gray-600 mt-1">{{ run.frequency }} • {{ run.group }} group</p>
+                        <p class="text-sm text-gray-600 mt-1">{{ run.group }}</p>
                     </div>
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold" :class="getStatusClasses(run.status)">
                         {{ run.status }}
@@ -302,8 +302,25 @@
                                     }}
                                 </span>
                             </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">View</span>
+                                <button
+                                    @click="statutoryView = 'summary'"
+                                    :class="statutoryView === 'summary' ? 'bg-[#0c8ce9] text-white' : 'text-gray-700 hover:bg-gray-100'"
+                                    class="px-3 py-1.5 rounded text-xs font-semibold transition-colors"
+                                >
+                                    Summary
+                                </button>
+                                <button
+                                    @click="statutoryView = 'perEmployee'"
+                                    :class="statutoryView === 'perEmployee' ? 'bg-[#0c8ce9] text-white' : 'text-gray-700 hover:bg-gray-100'"
+                                    class="px-3 py-1.5 rounded text-xs font-semibold transition-colors"
+                                >
+                                    Per Employee
+                                </button>
+                            </div>
                         </div>
-                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                        <div v-if="statutoryView === 'summary'" class="border border-gray-200 rounded-lg overflow-hidden">
                             <table class="w-full">
                                 <thead class="bg-gray-50 border-b border-gray-200">
                                     <tr>
@@ -326,6 +343,38 @@
                                     </tr>
                                     <tr v-if="statutoryCompliance.length === 0">
                                         <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">No statutory compliance data yet.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="border border-gray-200 rounded-lg overflow-hidden">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Contribution</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Coverage Period</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee Share</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employer Share</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Total Amount</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Due Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    <tr v-for="item in statutoryPerEmployee" :key="item.id" class="hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-sm text-gray-900">
+                                            <p class="font-semibold">{{ item.employeeName }}</p>
+                                            <p class="text-xs text-gray-500">{{ item.role }}</p>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">{{ item.name }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">{{ item.coverage }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(item.employeeShare) }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(item.employerShare) }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(item.total) }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">{{ formatDate(item.dueDate) }}</td>
+                                    </tr>
+                                    <tr v-if="statutoryPerEmployee.length === 0">
+                                        <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500">No statutory compliance data yet.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -430,8 +479,6 @@
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Time Out</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Start</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll End</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Type</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Frequency</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Action</th>
                                 </tr>
                             </thead>
@@ -442,8 +489,6 @@
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ record.timeOut || '--' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ formatDate(record.payrollStart) }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ formatDate(record.payrollEnd) }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ record.payrollType }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-700">{{ record.payrollFrequency }}</td>
                                     <td class="px-4 py-3">
                                         <button
                                             @click="openAttendanceRecord(record)"
@@ -454,7 +499,7 @@
                                     </td>
                                 </tr>
                                 <tr v-if="selectedEmployee.records.length === 0">
-                                    <td colspan="8" class="px-4 py-6 text-center text-sm text-gray-500">No attendance records.</td>
+                                    <td colspan="6" class="px-4 py-6 text-center text-sm text-gray-500">No attendance records.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -751,7 +796,9 @@ const addDeduction = async () => {
 }
 
 const statutoryCompliance = ref([])
+const statutoryPerEmployee = ref([])
 const statutoryBasis = ref('monthly')
+const statutoryView = ref('summary')
 
 const defaultRun = () => ({
     id: runId || 0,
@@ -1044,8 +1091,8 @@ const fetchStatutoryCompliance = async () => {
         const response = await axios.get(`/api/payroll-runs/${runId}/statutory-compliance`, {
             params: { basis: statutoryBasis.value }
         })
-        const rows = response.data?.data || []
-        statutoryCompliance.value = rows
+        statutoryCompliance.value = response.data?.data || []
+        statutoryPerEmployee.value = response.data?.perEmployee || []
     } catch (error) {
         console.error('Failed to load statutory compliance', error)
     }

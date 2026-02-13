@@ -13,6 +13,8 @@ use App\Models\Department;
 use App\Models\UsersHasBranch;
 use App\Models\PayrollGroup;
 use App\Models\UsersSalaryType;
+use App\Models\OvertimeRequest;
+use App\Models\OvertimeRate;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -89,12 +91,12 @@ class PayrollTestSeeder extends Seeder
         $index = 0;
         $employeesPerCombo = 2;
 
-        $payrollGroups = PayrollGroup::query()->get()->keyBy('salary_type');
-        foreach ($payrollTypes as $type) {
-            if (!$payrollGroups->has($type)) {
-                $payrollGroups[$type] = PayrollGroup::create([
-                    'name' => ucfirst($type) . ' Group',
-                    'salary_type' => $type
+        $payrollGroups = PayrollGroup::query()->get()->keyBy('payroll_frequency');
+        foreach ($frequencies as $frequency) {
+            if (!$payrollGroups->has($frequency)) {
+                $payrollGroups[$frequency] = PayrollGroup::create([
+                    'name' => $frequency . ' Group',
+                    'payroll_frequency' => $frequency
                 ]);
             }
         }
@@ -142,7 +144,8 @@ class PayrollTestSeeder extends Seeder
                     $employees->push(EmployeeTest::updateOrCreate(
                         ['user_id' => $user->id],
                         [
-                            'payroll_group_id' => $payrollGroups[$type]->id,
+                            'payroll_group_id' => $payrollGroups[$frequency]->id,
+                            'payroll_frequency' => $frequency,
                             'position' => $positions[$index] ?? 'Staff',
                             'rate' => $rate
                         ]
@@ -157,8 +160,38 @@ class PayrollTestSeeder extends Seeder
             }
         }
 
+
         $payrollStart = Carbon::parse('2026-02-01');
         $payrollEnd = $payrollStart->copy()->addDays(4);
+
+        $approverId = User::query()->value('id');
+        $regularRate = OvertimeRate::query()->where('day_type', 'regular_day')->first();
+
+        $otSeeds = [
+            ['offset' => 1, 'hours' => 2.0],
+            ['offset' => 3, 'hours' => 1.5],
+            ['offset' => 5, 'hours' => 3.0]
+        ];
+
+        $employees->take(3)->each(function ($employee, $index) use ($payrollStart, $approverId, $regularRate, $otSeeds) {
+            $seed = $otSeeds[$index] ?? ['offset' => 1, 'hours' => 2.0];
+            $requestDate = $payrollStart->copy()->addDays($seed['offset'])->toDateString();
+
+            OvertimeRequest::create([
+                'employee_id' => $employee->id,
+                'request_date' => $requestDate,
+                'hours' => $seed['hours'],
+                'day_type' => 'regular_day',
+                'start_time' => '17:00:00',
+                'status' => 'Approved',
+                'reason' => 'Seeded overtime request',
+                'requested_by' => $employee->user_id,
+                'approved_by' => $approverId,
+                'approved_at' => now(),
+                'approved_multiplier' => $regularRate?->multiplier,
+                'approved_hours' => $seed['hours']
+            ]);
+        });
 
         $dateRange = collect();
         for ($i = 0; $i <= $payrollStart->diffInDays($payrollEnd); $i++) {
@@ -188,8 +221,7 @@ class PayrollTestSeeder extends Seeder
                     'time_in' => $timeIn,
                     'time_out' => $timeOut,
                     'payroll_start' => $payrollStart->toDateString(),
-                    'payroll_end' => $payrollEnd->toDateString(),
-                    'payroll_frequency' => $frequency
+                    'payroll_end' => $payrollEnd->toDateString()
                 ]);
             }
         });
@@ -202,8 +234,8 @@ class PayrollTestSeeder extends Seeder
                     'frequency' => 'Bi-Weekly',
                     'start_date' => '2026-02-01',
                     'end_date' => '2026-02-15',
-                    'group' => 'Hour Group',
-                    'payroll_group_id' => $payrollGroups['hour']->id,
+                    'group' => 'Bi-Weekly Group',
+                    'payroll_group_id' => $payrollGroups['Bi-Weekly']->id,
                     'status' => 'Draft',
                     'pay_date' => '2026-02-20',
                     'description' => 'Seeded payroll run for testing.'
@@ -214,10 +246,14 @@ class PayrollTestSeeder extends Seeder
         foreach ($runs as $run) {
             $attendanceRows = EmployeeAttendance::query()
                 ->whereBetween('attendance_date', [$run->start_date, $run->end_date])
-                ->where('payroll_frequency', $run->frequency)
                 ->when($run->payroll_group_id, function ($query) use ($run) {
                     $query->whereHas('employee', function ($employeeQuery) use ($run) {
                         $employeeQuery->where('payroll_group_id', $run->payroll_group_id);
+                    });
+                })
+                ->when($run->frequency, function ($query) use ($run) {
+                    $query->whereHas('employee', function ($employeeQuery) use ($run) {
+                        $employeeQuery->where('payroll_frequency', $run->frequency);
                     });
                 })
                 ->get()

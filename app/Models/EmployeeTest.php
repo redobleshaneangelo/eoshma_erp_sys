@@ -16,6 +16,7 @@ class EmployeeTest extends Model
     protected $fillable = [
         'user_id',
         'payroll_group_id',
+        'payroll_frequency',
         'position',
         'rate',
         'hourly_rate'

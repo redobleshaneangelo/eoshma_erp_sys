@@ -11,7 +11,7 @@ class PayrollGroup extends Model
 
     protected $fillable = [
         'name',
-        'salary_type'
+        'payroll_frequency'
     ];
 
     public function employees()

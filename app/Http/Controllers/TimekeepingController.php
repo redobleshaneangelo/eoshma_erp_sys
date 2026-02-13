@@ -202,8 +202,7 @@ class TimekeepingController extends Controller
                 'time_in' => $timeIn,
                 'time_out' => $timeOut,
                 'payroll_start' => $lastAttendance?->payroll_start?->toDateString() ?? $date,
-                'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date,
-                'payroll_frequency' => $lastAttendance?->payroll_frequency ?? 'Weekly'
+                'payroll_end' => $lastAttendance?->payroll_end?->toDateString() ?? $date
             ]
         );
 
