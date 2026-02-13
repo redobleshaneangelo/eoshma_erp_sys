@@ -110,20 +110,12 @@
                                 <td class="px-4 py-3 text-sm text-gray-700">{{ item.dayTypeLabel }}</td>
                                 <td class="px-4 py-3 text-sm text-gray-600">{{ item.reason || '--' }}</td>
                                 <td class="px-4 py-3">
-                                    <div class="flex gap-2">
-                                        <button
-                                            @click="approveOvertime(item)"
-                                            class="px-3 py-1 text-xs font-semibold text-white bg-green-600 rounded hover:bg-green-700"
-                                        >
-                                            Approve
-                                        </button>
-                                        <button
-                                            @click="rejectOvertime(item)"
-                                            class="px-3 py-1 text-xs font-semibold text-white bg-red-600 rounded hover:bg-red-700"
-                                        >
-                                            Reject
-                                        </button>
-                                    </div>
+                                    <button
+                                        @click="openOvertimeModal(item)"
+                                        class="px-3 py-1 text-xs font-semibold text-white bg-[#0c8ce9] rounded hover:bg-blue-700"
+                                    >
+                                        Open Request
+                                    </button>
                                 </td>
                             </tr>
                             <tr v-if="overtimeRequests.length === 0">
@@ -133,6 +125,70 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showOvertimeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-gray-900">Overtime Request</h3>
+                        <button @click="closeOvertimeModal" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6 space-y-4 text-sm text-gray-700">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase">Employee</p>
+                        <p class="font-semibold text-gray-900">{{ selectedOvertime.employee?.name }}</p>
+                        <p class="text-xs text-gray-500">{{ selectedOvertime.employee?.position }}</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 uppercase">Date</p>
+                            <p class="font-semibold text-gray-900">{{ formatDate(selectedOvertime.date) }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 uppercase">Hours</p>
+                            <p class="font-semibold text-gray-900">{{ selectedOvertime.hours }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 uppercase">Start Time</p>
+                            <p class="font-semibold text-gray-900">{{ selectedOvertime.startTime || '--' }}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold text-gray-500 uppercase">Day Type</p>
+                            <p class="font-semibold text-gray-900">{{ selectedOvertime.dayTypeLabel }}</p>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase">Reason</p>
+                        <p class="text-sm text-gray-700">{{ selectedOvertime.reason || '--' }}</p>
+                    </div>
+                </div>
+                <div class="p-6 border-t border-gray-200 flex gap-3">
+                    <button
+                        @click="closeOvertimeModal"
+                        class="flex-1 px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                    >
+                        Close
+                    </button>
+                    <button
+                        @click="approveOvertime(selectedOvertime)"
+                        class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                    >
+                        Approve
+                    </button>
+                    <button
+                        @click="rejectOvertime(selectedOvertime)"
+                        class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                    >
+                        Reject
+                    </button>
                 </div>
             </div>
         </div>
@@ -149,6 +205,8 @@
     const activeTab = ref('payroll')
     const pendingRuns = ref([])
     const overtimeRequests = ref([])
+    const showOvertimeModal = ref(false)
+    const selectedOvertime = ref({})
 
     const mapRun = (payload) => ({
         id: payload.id,
@@ -200,6 +258,7 @@
 
             await axios.put(`/api/pending-approvals/hr/overtime/${item.id}/approve`)
             await fetchPendingOvertime()
+            closeOvertimeModal()
             Swal.fire({
                 toast: true,
                 position: 'top-end',
@@ -239,6 +298,7 @@
 
             await axios.put(`/api/pending-approvals/hr/overtime/${item.id}/reject`)
             await fetchPendingOvertime()
+            closeOvertimeModal()
             Swal.fire({
                 toast: true,
                 position: 'top-end',
@@ -262,6 +322,16 @@
     const refreshAll = () => {
         fetchPendingRuns()
         fetchPendingOvertime()
+    }
+
+    const openOvertimeModal = (item) => {
+        selectedOvertime.value = item
+        showOvertimeModal.value = true
+    }
+
+    const closeOvertimeModal = () => {
+        showOvertimeModal.value = false
+        selectedOvertime.value = {}
     }
 
     const openApproval = (run) => {

@@ -41,7 +41,7 @@
                                                             : 'text-gray-600 hover:text-gray-800'"
                                                         class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
                                                     >
-                                                        Check In
+                                                        Time In
                                                     </button>
 
                                                     <button
@@ -51,7 +51,7 @@
                                                             : 'text-gray-600 hover:text-gray-800'"
                                                         class="px-4 py-2 rounded-md text-sm font-medium transition-colors"
                                                     >
-                                                        Check Out
+                                                        Time Out
                                                     </button>
                                                 </div>
                                             </div>
@@ -291,8 +291,8 @@
                             >
                                 ✓ Confirm {{
                                     summaryData.scanMode === 'checkout'
-                                        ? 'Check Out'
-                                        : 'Check In'
+                                        ? 'Time Out'
+                                        : 'Time In'
                                 }}
                             </button>
 

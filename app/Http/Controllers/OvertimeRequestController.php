@@ -57,7 +57,7 @@ class OvertimeRequestController extends Controller
         $employee = $this->getEmployeeForUser($user);
         $validated = $request->validate([
             'request_date' => ['required', 'date'],
-            'hours' => ['required', 'numeric', 'min:0.5', 'max:24'],
+            'hours' => ['required', 'numeric', 'min:0.5', 'max:4'],
             'day_type' => ['required', 'string', 'exists:overtime_rates,day_type'],
             'start_time' => ['required', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'reason' => ['nullable', 'string', 'max:1000']

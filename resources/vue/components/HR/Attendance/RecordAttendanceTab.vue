@@ -419,10 +419,10 @@
                             type="number"
                             step="0.5"
                             min="0.5"
-                            max="24"
+                            max="4"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                         />
-                        <p class="text-xs text-gray-500 mt-1">Approved hours will be computed from schedule and attendance.</p>
+                        <p class="text-xs text-gray-500 mt-1">Maximum of 4 hours per request.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">Start Time</label>
@@ -479,7 +479,6 @@
                                 </span>
                             </div>
                         </div>
-                        <div v-else class="text-xs text-gray-500">No pending requests.</div>
                     </div>
                 </div>
                 <div class="border-t border-gray-200 px-6 py-4 flex justify-end gap-2">
@@ -789,6 +788,16 @@
 
     const submitOvertimeRequest = async () => {
         try {
+            const hours = Number(overtimeForm.value.hours)
+            if (Number.isFinite(hours) && hours > 4) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Overtime limit',
+                    text: 'Overtime requests are limited to 4 hours.',
+                    confirmButtonColor: '#0c8ce9'
+                })
+                return
+            }
             await axios.post('/api/overtime-requests', overtimeForm.value)
             await fetchOvertimeRequests()
             Swal.fire({
