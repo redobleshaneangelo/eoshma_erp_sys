@@ -3,6 +3,7 @@
     <div class="ps-60 bg-[#F3F4F6] min-h-screen">
         <div class="w-full px-10 py-10">
             <HRAttendance v-if="auth.department === 'HR'" />
+            <FRMAttendance v-if="auth.department === 'Finance'" />
         </div>
     </div>
 
@@ -26,6 +27,7 @@
     import { useAuthStore } from '@/stores/auth'
 
     import HRAttendance from '@/views/Pages/HR/Attendance/Attendance.vue'
+    import FRMAttendance from '@/views/Pages/FRM/Attendance/Attendance.vue'
 
     const auth = useAuthStore()
 
