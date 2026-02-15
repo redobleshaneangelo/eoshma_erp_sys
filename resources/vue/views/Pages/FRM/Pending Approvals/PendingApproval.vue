@@ -23,7 +23,7 @@
                             : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-100'
                     ]"
                 >
-                    Tab 2
+                    Payroll Approvals
                 </button>
                 <button
                     @click="activeTab = 'tab3'"
@@ -289,13 +289,49 @@
     </div>
 
     <!-- Tab 2 Content -->
-    <div v-if="activeTab === 'tab2'">
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
-            <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-            </svg>
-            <p class="text-lg font-semibold text-gray-900 mb-2">Tab 2</p>
-            <p class="text-sm text-gray-600">Content for Tab 2 will be added here.</p>
+    <div v-if="activeTab === 'tab2'" class="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-3">
+            <h2 class="text-sm font-semibold text-gray-700">Pending Payroll Runs (Finance Approval)</h2>
+        </div>
+        <div class="p-6">
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payroll Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Frequency</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Coverage</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Group</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Pay Date</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <tr v-for="run in pendingFinancePayrollRuns" :key="run.id" class="hover:bg-gray-50">
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ run.name }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ run.frequency }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ formatDate(run.start_date) }} - {{ formatDate(run.end_date) }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ run.group }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ formatDate(run.pay_date) }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ run.status }}</td>
+                            <td class="px-4 py-3">
+                                <button
+                                    @click="viewPayrollApproval(run.id)"
+                                    class="px-3 py-1 text-xs font-semibold text-white bg-[#0c8ce9] rounded hover:bg-blue-700"
+                                >
+                                    Review
+                                </button>
+                            </td>
+                        </tr>
+                        <tr v-if="pendingFinancePayrollRuns.length === 0">
+                            <td colspan="7" class="px-4 py-8 text-center text-sm text-gray-500">
+                                No pending payroll runs for finance approval.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -322,6 +358,7 @@ const auth = useAuthStore()
 
 // Active Tab
 const activeTab = ref('prebiddings')
+const pendingFinancePayrollRuns = ref([])
 
 // Filters
 const filters = ref({
@@ -405,6 +442,25 @@ const fetchPendingPrebiddingApprovals = async () => {
     }
 } 
 
+const fetchPendingFinancePayrollRuns = async () => {
+    try {
+        const response = await axios.get('/api/payroll-runs')
+        const rows = response.data?.data || []
+        pendingFinancePayrollRuns.value = rows.filter(run => run.status === 'Pending Finance Approval')
+    } catch (error) {
+        console.error('Failed to load pending payroll runs for finance', error)
+        pendingFinancePayrollRuns.value = []
+    }
+}
+
+const viewPayrollApproval = (runId) => {
+    router.push({
+        name: 'payroll_run_detail',
+        params: { id: runId },
+        query: { mode: 'finance-approval' }
+    })
+}
+
 // Computed Properties
 const filteredRequests = computed(() => {
     let results = pendingPrebiddingsApprovals.value.filter(req => {
@@ -475,5 +531,6 @@ const viewDetails = (id) => {
 
 onMounted(() => {
     fetchPendingPrebiddingApprovals()
+    fetchPendingFinancePayrollRuns()
 })
 </script>

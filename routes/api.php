@@ -13,6 +13,10 @@ use App\Http\Controllers\OvertimeRateController;
 use App\Http\Controllers\OvertimeRequestController;
 use App\Http\Controllers\EmployeeScheduleController;
 use App\Http\Controllers\PayrollGroupController;
+use App\Http\Controllers\ChartAccountController;
+use App\Http\Controllers\EmployeeNotificationController;
+use App\Http\Controllers\EmployeePayslipController;
+use App\Http\Controllers\LocationController;
 
 
 /*
@@ -78,7 +82,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payroll-runs/{payrollRun}/statutory-compliance', [PayrollRunController::class, 'statutoryCompliance']);
     Route::get('/payroll-runs/{payrollRun}/computed-payroll', [PayrollRunController::class, 'computedPayroll']);
     Route::post('/payroll-runs/{payrollRun}/send-for-approval', [PayrollRunController::class, 'sendForApproval']);
+    Route::post('/payroll-runs/{payrollRun}/send-to-finance-approval', [PayrollRunController::class, 'sendToFinanceApproval']);
     Route::post('/payroll-runs/{payrollRun}/approve', [PayrollRunController::class, 'approve']);
+    Route::post('/payroll-runs/{payrollRun}/reject', [PayrollRunController::class, 'reject']);
     Route::post('/payroll-runs/{payrollRun}/release-payslip', [PayrollRunController::class, 'releasePayslip']);
     Route::post('/payroll-runs/{payrollRun}/eligibilities', [PayrollRunController::class, 'updateEligibility']);
     Route::post('/payroll-runs/{payrollRun}/eligibilities/bulk', [PayrollRunController::class, 'bulkEligibility']);
@@ -110,6 +116,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pending-approvals/hr/overtime', [OvertimeRequestController::class, 'pending']);
     Route::put('/pending-approvals/hr/overtime/{overtimeRequest}/approve', [OvertimeRequestController::class, 'approve']);
     Route::put('/pending-approvals/hr/overtime/{overtimeRequest}/reject', [OvertimeRequestController::class, 'reject']);
+
+    Route::get('/chart-accounts', [ChartAccountController::class, 'index']);
+    Route::post('/chart-accounts', [ChartAccountController::class, 'store']);
+
+    Route::get('/employee/notifications', [EmployeeNotificationController::class, 'index']);
+    Route::post('/employee/notifications/{notificationId}/read', [EmployeeNotificationController::class, 'markRead']);
+    Route::get('/employee/payslips/{employeePayslip}', [EmployeePayslipController::class, 'showMine']);
+    Route::get('/location/reverse', [LocationController::class, 'reverse']);
 
 
 

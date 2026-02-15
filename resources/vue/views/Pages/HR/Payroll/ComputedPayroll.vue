@@ -127,6 +127,13 @@ const sendForApproval = () => {
                 })
                 .catch((error) => {
                     console.error('Failed to send for approval', error)
+                    const message = error.response?.data?.message || 'Failed to send for approval.'
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Send failed',
+                        text: message,
+                        confirmButtonColor: '#ef4444'
+                    })
                 })
         }
     })

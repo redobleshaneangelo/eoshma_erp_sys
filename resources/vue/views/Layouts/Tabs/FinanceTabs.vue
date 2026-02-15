@@ -47,6 +47,29 @@
 
     <router-link
         v-if="hasPermission('Accounting.view')"
+        to="/liabilities"
+        class="group relative px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-3"
+        :class="
+            $route.path.startsWith('/liabilities')
+                ? 'bg-[#0c8ce9] text-white'
+                : 'text-gray-700 hover:bg-gray-100'
+        "
+    >
+        <svg
+            class="h-5 w-5 shrink-0"
+            :class="$route.path.startsWith('/liabilities') ? 'text-white' : 'text-gray-700'"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+        >
+            <path
+                d="M3 3h18v4H3V3zm2 6h14v12H5V9zm3 3v2h8v-2H8zm0 4v2h5v-2H8z"
+            />
+        </svg>
+        <span>Liabilities</span>
+    </router-link>
+
+    <router-link
+        v-if="hasPermission('Accounting.view')"
         to="/payables"
         class="group relative px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-3"
         :class="

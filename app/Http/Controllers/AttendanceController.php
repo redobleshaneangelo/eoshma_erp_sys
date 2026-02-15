@@ -7,6 +7,7 @@ use App\Models\EmployeeTest;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -53,6 +54,18 @@ class AttendanceController extends Controller
                     'status' => $status,
                     'timeInPhoto' => $timeInPhoto,
                     'timeOutPhoto' => $timeOutPhoto,
+                    'timeInGeo' => [
+                        'latitude' => $row->time_in_latitude,
+                        'longitude' => $row->time_in_longitude,
+                        'accuracy' => $row->time_in_geo_accuracy,
+                        'label' => $row->time_in_location_label,
+                    ],
+                    'timeOutGeo' => [
+                        'latitude' => $row->time_out_latitude,
+                        'longitude' => $row->time_out_longitude,
+                        'accuracy' => $row->time_out_geo_accuracy,
+                        'label' => $row->time_out_location_label,
+                    ],
                     'qrPayload' => $row->qr_payload
                 ];
             });
@@ -84,8 +97,28 @@ class AttendanceController extends Controller
             'time_out' => ['nullable', 'regex:/^\d{2}:\d{2}(:\d{2})?$/'],
             'qr_payload' => ['nullable', 'string'],
             'time_in_photo' => ['nullable', 'string'],
-            'time_out_photo' => ['nullable', 'string']
+            'time_out_photo' => ['nullable', 'string'],
+            'time_in_geo' => ['nullable', 'array'],
+            'time_in_geo.latitude' => ['required_with:time_in_photo', 'numeric', 'between:-90,90'],
+            'time_in_geo.longitude' => ['required_with:time_in_photo', 'numeric', 'between:-180,180'],
+            'time_in_geo.accuracy' => ['nullable', 'numeric', 'min:0'],
+            'time_out_geo' => ['nullable', 'array'],
+            'time_out_geo.latitude' => ['required_with:time_out_photo', 'numeric', 'between:-90,90'],
+            'time_out_geo.longitude' => ['required_with:time_out_photo', 'numeric', 'between:-180,180'],
+            'time_out_geo.accuracy' => ['nullable', 'numeric', 'min:0']
         ]);
+
+        if (!empty($validated['time_in_photo']) && empty($validated['time_in_geo'])) {
+            return response()->json([
+                'message' => 'Geolocation is required for time-in photo capture.'
+            ], 422);
+        }
+
+        if (!empty($validated['time_out_photo']) && empty($validated['time_out_geo'])) {
+            return response()->json([
+                'message' => 'Geolocation is required for time-out photo capture.'
+            ], 422);
+        }
 
         $timeIn = $validated['time_in'] ?? null;
         $timeOut = $validated['time_out'] ?? null;
@@ -130,10 +163,28 @@ class AttendanceController extends Controller
             $updateData['qr_payload'] = $validated['qr_payload'];
         }
         if ($timeInPhotoPath) {
+            $timeInLabel = $this->reverseGeocodeLabel(
+                $validated['time_in_geo']['latitude'] ?? null,
+                $validated['time_in_geo']['longitude'] ?? null
+            );
+
             $updateData['time_in_photo_path'] = $timeInPhotoPath;
+            $updateData['time_in_latitude'] = $validated['time_in_geo']['latitude'] ?? null;
+            $updateData['time_in_longitude'] = $validated['time_in_geo']['longitude'] ?? null;
+            $updateData['time_in_geo_accuracy'] = $validated['time_in_geo']['accuracy'] ?? null;
+            $updateData['time_in_location_label'] = $timeInLabel;
         }
         if ($timeOutPhotoPath) {
+            $timeOutLabel = $this->reverseGeocodeLabel(
+                $validated['time_out_geo']['latitude'] ?? null,
+                $validated['time_out_geo']['longitude'] ?? null
+            );
+
             $updateData['time_out_photo_path'] = $timeOutPhotoPath;
+            $updateData['time_out_latitude'] = $validated['time_out_geo']['latitude'] ?? null;
+            $updateData['time_out_longitude'] = $validated['time_out_geo']['longitude'] ?? null;
+            $updateData['time_out_geo_accuracy'] = $validated['time_out_geo']['accuracy'] ?? null;
+            $updateData['time_out_location_label'] = $timeOutLabel;
         }
 
         EmployeeAttendance::updateOrCreate(
@@ -226,5 +277,50 @@ class AttendanceController extends Controller
         Storage::disk('public')->put($path, $binary);
 
         return $path;
+    }
+
+    private function reverseGeocodeLabel(?float $latitude, ?float $longitude): ?string
+    {
+        if (is_null($latitude) || is_null($longitude)) {
+            return null;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'EOSHMA ERP Attendance/1.0'
+            ])->get('https://nominatim.openstreetmap.org/reverse', [
+                'format' => 'jsonv2',
+                'lat' => $latitude,
+                'lon' => $longitude,
+                'addressdetails' => 1
+            ]);
+
+            if (!$response->successful()) {
+                return null;
+            }
+
+            $body = $response->json();
+            $address = $body['address'] ?? [];
+
+            $city = $address['city']
+                ?? $address['town']
+                ?? $address['municipality']
+                ?? $address['village']
+                ?? null;
+
+            $province = $address['state']
+                ?? $address['county']
+                ?? null;
+
+            $parts = array_filter([$city, $province]);
+
+            if (!empty($parts)) {
+                return implode(', ', $parts);
+            }
+
+            return $body['display_name'] ?? null;
+        } catch (\Throwable $exception) {
+            return null;
+        }
     }
 }

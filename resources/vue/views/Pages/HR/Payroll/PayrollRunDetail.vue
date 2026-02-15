@@ -4,13 +4,13 @@
         <div class="px-10 py-10 space-y-6">
             <div>
                 <router-link
-                    to="/payroll"
+                    :to="backRoute"
                     class="inline-flex items-center gap-2 text-[#0c8ce9] font-semibold hover:underline mb-4"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                     </svg>
-                    Back to Payroll
+                    {{ backLabel }}
                 </router-link>
 
                 <div class="flex flex-wrap items-start justify-between gap-4">
@@ -18,9 +18,19 @@
                         <h1 class="text-3xl font-bold text-gray-900">{{ run.name }}</h1>
                         <p class="text-sm text-gray-600 mt-1">{{ run.group }}</p>
                     </div>
-                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold" :class="getStatusClasses(run.status)">
-                        {{ run.status }}
-                    </span>
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold" :class="getStatusClasses(run.status)">
+                            {{ run.status }}
+                        </span>
+                        <button
+                            v-if="isRejected && run.rejectReason"
+                            type="button"
+                            @click="showRejectionReason"
+                            class="px-3 py-1 text-xs font-semibold text-red-700 border border-red-200 rounded hover:bg-red-50"
+                        >
+                            Rejection Reason
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -61,6 +71,37 @@
                 </div>
 
                 <div class="p-6">
+                    <div v-if="activeTab === 'affected_accounts'" class="space-y-4">
+                        <h2 class="text-lg font-semibold text-gray-900">Affected Accounts</h2>
+                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                            <table class="w-full">
+                                <thead class="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Account Code</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Account Name</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Type</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Transactions</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Total Debit</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Total Credit</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200">
+                                    <tr v-for="account in affectedAccounts" :key="account.code" class="hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-sm font-semibold text-gray-900">{{ account.code }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">{{ account.name }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700 capitalize">{{ account.type }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">{{ account.transactions }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(account.totalDebit) }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(account.totalCredit) }}</td>
+                                    </tr>
+                                    <tr v-if="affectedAccounts.length === 0">
+                                        <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500">No affected accounts found for this payroll run.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div v-if="activeTab === 'attendance'" class="space-y-4">
                         <h2 class="text-lg font-semibold text-gray-900">Attendance Summary</h2>
                         <div class="border border-gray-200 rounded-lg overflow-hidden">
@@ -73,7 +114,7 @@
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Total Hours</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">OT Hours</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">OT Pay</th>
-                                        <th v-if="isPending && isApprovalMode" class="px-4 py-3 text-left text-xs font-semibold text-gray-700">
+                                        <th v-if="showEligibilityColumn" class="px-4 py-3 text-left text-xs font-semibold text-gray-700">
                                             <div class="flex items-center gap-2">
                                                 Eligible
                                                 <input
@@ -99,7 +140,7 @@
                                         <td class="px-4 py-3 text-sm text-gray-700">{{ employee.totalHours }}</td>
                                         <td class="px-4 py-3 text-sm text-gray-700">{{ employee.overtimeHours }}</td>
                                         <td class="px-4 py-3 text-sm text-gray-700">₱{{ formatNumber(employee.overtimePay) }}</td>
-                                        <td v-if="isPending && isApprovalMode" class="px-4 py-3 text-sm text-gray-700">
+                                        <td v-if="showEligibilityColumn" class="px-4 py-3 text-sm text-gray-700">
                                             <input
                                                 type="checkbox"
                                                 :checked="employee.isEligible"
@@ -118,7 +159,7 @@
                                         </td>
                                     </tr>
                                     <tr v-if="attendanceSummary.length === 0">
-                                        <td :colspan="isPending && isApprovalMode ? 8 : 7" class="px-4 py-8 text-center text-sm text-gray-500">No attendance summary available.</td>
+                                        <td :colspan="showEligibilityColumn ? 8 : 7" class="px-4 py-8 text-center text-sm text-gray-500">No attendance summary available.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -415,10 +456,31 @@
                 </div>
             </div>
 
-            <div class="flex flex-wrap justify-end gap-3" v-if="showPrimaryAction || (isPending && isApprovalMode && !isViewOnly)">
+            <div class="flex flex-wrap justify-end gap-3" v-if="showPrimaryAction || (isPendingDraft && isApprovalMode && !isViewOnly) || (isPendingDraft && isEligibilityMode && !isViewOnly) || (isPendingFinance && isFinanceApprovalMode && !isViewOnly)">
                 <button
-                    v-if="isPending && isApprovalMode && !isViewOnly"
+                    v-if="isPendingDraft && isEligibilityMode && !isViewOnly"
+                    @click="sendToFinanceApproval"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-[#0c8ce9] rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Send to Finance Approval
+                </button>
+                <button
+                    v-if="isPendingDraft && isApprovalMode && !isViewOnly"
                     @click="approvePayroll"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                    Approve Payroll
+                </button>
+                <button
+                    v-if="isPendingFinance && isFinanceApprovalMode && !isViewOnly"
+                    @click="financeRejectPayroll"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                    Reject Payroll
+                </button>
+                <button
+                    v-if="isPendingFinance && isFinanceApprovalMode && !isViewOnly"
+                    @click="financeApprovePayroll"
                     class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
                 >
                     Approve Payroll
@@ -594,8 +656,12 @@ const runId = Number(route.params.id)
 
 onMounted(() => {
     auth.pageTitle = 'Payroll Run'
+    if (route.query?.mode === 'finance-liabilities') {
+        activeTab.value = 'affected_accounts'
+    }
     applyQueryRun()
     fetchRun()
+    fetchAffectedAccounts()
     fetchAttendanceSummary()
     fetchAllowances()
     fetchDeductions()
@@ -604,6 +670,7 @@ onMounted(() => {
 })
 
 const tabs = [
+    { key: 'affected_accounts', label: 'Affected Accounts' },
     { key: 'attendance', label: 'Attendance Summary' },
     { key: 'allowances', label: 'Allowances' },
     { key: 'deductions', label: 'Deductions' },
@@ -612,6 +679,7 @@ const tabs = [
 ]
 
 const activeTab = ref('attendance')
+const affectedAccounts = ref([])
 
 const attendanceSummary = ref([])
 
@@ -721,6 +789,140 @@ const approvePayroll = () => {
     })
 }
 
+const sendToFinanceApproval = async () => {
+    const result = await Swal.fire({
+        title: 'Send to Finance?',
+        text: 'This will submit this payroll run to FRM Pending Approvals.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#0c8ce9',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, send'
+    })
+
+    if (!result.isConfirmed) {
+        return
+    }
+
+    try {
+        const response = await axios.post(`/api/payroll-runs/${runId}/send-to-finance-approval`)
+        const payload = response.data?.data
+        if (payload) {
+            run.value = normalizeRun(payload)
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Payroll run sent to Finance',
+            showConfirmButton: false,
+            timer: 2000
+        })
+
+        router.push({ name: 'pending-approvals', query: { tab: 'payroll' } })
+    } catch (error) {
+        console.error('Failed to send payroll run to finance approval', error)
+        const message = error.response?.data?.message || 'Failed to send payroll run to Finance.'
+        Swal.fire({
+            icon: 'error',
+            title: 'Send failed',
+            text: message,
+            confirmButtonColor: '#ef4444'
+        })
+    }
+}
+
+const financeApprovePayroll = async () => {
+    const result = await Swal.fire({
+        title: 'Approve payroll?',
+        text: 'This payroll run will be marked as approved.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#16a34a',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, approve'
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+        const response = await axios.post(`/api/payroll-runs/${runId}/approve`)
+        const payload = response.data?.data
+        if (payload) {
+            run.value = normalizeRun(payload)
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Payroll approved',
+            showConfirmButton: false,
+            timer: 2000
+        })
+
+        router.push({ name: 'pending-approvals' })
+    } catch (error) {
+        console.error('Failed to approve payroll in finance review', error)
+    }
+}
+
+const financeRejectPayroll = async () => {
+    const result = await Swal.fire({
+        title: 'Reject payroll?',
+        text: 'This payroll run will be returned to HR Drafts as Rejected.',
+        icon: 'warning',
+        input: 'textarea',
+        inputLabel: 'Rejection Reason',
+        inputPlaceholder: 'Enter reason for rejection...',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, reject',
+        preConfirm: (value) => {
+            if (!value || !value.trim()) {
+                Swal.showValidationMessage('Rejection reason is required.')
+                return null
+            }
+
+            return value.trim()
+        }
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+        const response = await axios.post(`/api/payroll-runs/${runId}/reject`, {
+            reason: result.value
+        })
+        const payload = response.data?.data
+        if (payload) {
+            run.value = normalizeRun(payload)
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Payroll rejected and moved to HR Rejected tab',
+            showConfirmButton: false,
+            timer: 2200
+        })
+
+        await router.push({ name: 'payroll', query: { tab: 'rejected' } })
+    } catch (error) {
+        console.error('Failed to reject payroll in finance review', error)
+        const message = error.response?.data?.message || 'Failed to reject payroll.'
+        Swal.fire({
+            icon: 'error',
+            title: 'Rejection failed',
+            text: message,
+            confirmButtonColor: '#ef4444'
+        })
+    }
+}
+
 const newAllowance = ref({
     employeeId: '',
     type: '',
@@ -809,7 +1011,8 @@ const defaultRun = () => ({
     group: 'fixed',
     status: 'Draft',
     payDate: '',
-    description: 'Payroll run details.'
+    description: 'Payroll run details.',
+    rejectReason: null
 })
 
 const run = ref(defaultRun())
@@ -825,7 +1028,8 @@ const normalizeRun = (payload) => {
         group: payload.group || 'fixed',
         status: payload.status || 'Draft',
         payDate: payload.pay_date || payload.payDate || '',
-        description: payload.description || 'Payroll run details.'
+        description: payload.description || 'Payroll run details.',
+        rejectReason: payload.reject_reason || payload.rejectReason || null
     }
 }
 
@@ -1098,19 +1302,83 @@ const fetchStatutoryCompliance = async () => {
     }
 }
 
+const fetchAffectedAccounts = async () => {
+    if (!runId) return
+    try {
+        const response = await axios.get('/api/chart-accounts')
+        const rows = response.data?.data || []
+
+        const grouped = {}
+
+        rows.forEach((account) => {
+            const transactions = (account.transactions || []).filter((entry) => Number(entry.payroll_run_id) === runId)
+            if (!transactions.length) return
+
+            const totalDebit = transactions.reduce((sum, entry) => sum + Number(entry.debit || 0), 0)
+            const totalCredit = transactions.reduce((sum, entry) => sum + Number(entry.credit || 0), 0)
+
+            grouped[account.code] = {
+                code: account.code,
+                name: account.name,
+                type: account.type,
+                transactions: transactions.length,
+                totalDebit: Number(totalDebit.toFixed(2)),
+                totalCredit: Number(totalCredit.toFixed(2))
+            }
+        })
+
+        affectedAccounts.value = Object.values(grouped).sort((a, b) => Number(a.code) - Number(b.code))
+    } catch (error) {
+        console.error('Failed to load affected accounts', error)
+    }
+}
+
 const isViewOnly = computed(() => route.name === 'payroll_run_view')
 const isApprovalMode = computed(() => route.query?.mode === 'approval')
+const isEligibilityMode = computed(() => route.query?.mode === 'eligibility')
+const isFinanceApprovalMode = computed(() => route.query?.mode === 'finance-approval')
+const isFinanceLiabilitiesMode = computed(() => route.query?.mode === 'finance-liabilities')
 const isApproved = computed(() => run.value.status === 'Approved')
-const isPending = computed(() => run.value.status === 'Pending')
+const isRejected = computed(() => run.value.status === 'Rejected')
+const isPendingDraft = computed(() => run.value.status === 'Pending')
+const isPendingFinance = computed(() => run.value.status === 'Pending Finance Approval')
+const isPending = computed(() => isPendingDraft.value || isPendingFinance.value)
 const isCompleted = computed(() => run.value.status === 'Completed')
 const isReadOnly = computed(() => isPending.value || isApproved.value || isCompleted.value || isViewOnly.value)
-const isEligibilityReadOnly = computed(() => isApproved.value || isCompleted.value || isViewOnly.value || (isPending.value && !isApprovalMode.value))
+const isEligibilityReadOnly = computed(() => {
+    if (isApproved.value || isCompleted.value || isViewOnly.value || isFinanceApprovalMode.value || isPendingFinance.value) {
+        return true
+    }
+
+    return isPendingDraft.value && !(isApprovalMode.value || isEligibilityMode.value)
+})
+
+const showEligibilityColumn = computed(() => {
+    if (!isPending.value) return false
+    return isApprovalMode.value || isEligibilityMode.value || isFinanceApprovalMode.value
+})
 
 const availableTabs = computed(() => {
-    if (isApproved.value || isPending.value || isCompleted.value || isViewOnly.value) {
+    if (isFinanceLiabilitiesMode.value) {
         return tabs
     }
-    return tabs.filter(tab => tab.key !== 'computed')
+
+    if (isApproved.value || isPending.value || isCompleted.value || isViewOnly.value) {
+        return tabs.filter(tab => tab.key !== 'affected_accounts')
+    }
+    return tabs.filter(tab => tab.key !== 'computed' && tab.key !== 'affected_accounts')
+})
+
+const backRoute = computed(() => {
+    if (isFinanceLiabilitiesMode.value) {
+        return '/liabilities'
+    }
+
+    return '/payroll'
+})
+
+const backLabel = computed(() => {
+    return isFinanceLiabilitiesMode.value ? 'Back to Liabilities' : 'Back to Payroll'
 })
 
 const showPrimaryAction = computed(() => !isPending.value && !isCompleted.value && !isViewOnly.value)
@@ -1135,7 +1403,9 @@ const fetchComputedPayroll = async () => {
 const getStatusClasses = (status) => {
     const map = {
         Draft: 'bg-gray-200 text-gray-700',
+        Rejected: 'bg-red-100 text-red-800',
         Pending: 'bg-yellow-100 text-yellow-800',
+        'Pending Finance Approval': 'bg-amber-100 text-amber-800',
         Approved: 'bg-green-100 text-green-800',
         Completed: 'bg-blue-100 text-blue-800'
     }
@@ -1153,5 +1423,14 @@ const formatDate = (date) => {
 
 const formatNumber = (value) => {
     return Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const showRejectionReason = () => {
+    Swal.fire({
+        icon: 'info',
+        title: 'Rejection Reason',
+        text: run.value.rejectReason || 'No rejection reason was provided.',
+        confirmButtonColor: '#0c8ce9'
+    })
 }
 </script>

@@ -99,30 +99,27 @@
 
                                     <!-- Sub-accounts -->
                                     <div v-if="accountGroup.expanded" class="divide-y divide-gray-100">
-                                        <div
-                                            v-for="subAccount in accountGroup.subAccounts"
-                                            :key="subAccount.code"
-                                            @click="toggleSubAccount(accountGroup.id, subAccount.code)"
-                                            class="px-6 py-3 cursor-pointer hover:bg-gray-50 flex items-center justify-between border-l-4 border-l-[#0c8ce9]"
-                                        >
-                                            <div class="flex items-center gap-2 flex-1">
-                                                <img :src="subAccount.expanded ? open : close" class="w-4 h-4" alt="toggle" />
-                                                <div>
-                                                    <p class="font-medium text-[#333333]">{{ subAccount.code }} - {{ subAccount.name }}</p>
-                                                    <p class="text-xs text-gray-500">{{ subAccount.transactions.length }} transactions</p>
+                                        <template v-for="subAccount in accountGroup.subAccounts" :key="subAccount.code">
+                                            <div
+                                                @click="toggleSubAccount(accountGroup.id, subAccount.code)"
+                                                class="px-6 py-3 cursor-pointer hover:bg-gray-50 flex items-center justify-between border-l-4 border-l-[#0c8ce9]"
+                                            >
+                                                <div class="flex items-center gap-2 flex-1">
+                                                    <img :src="subAccount.expanded ? open : close" class="w-4 h-4" alt="toggle" />
+                                                    <div>
+                                                        <p class="font-medium text-[#333333]">{{ subAccount.code }} - {{ subAccount.name }}</p>
+                                                        <p class="text-xs text-gray-500">{{ subAccount.transactions.length }} transactions</p>
+                                                    </div>
+                                                </div>
+                                                <div class="text-right ml-4">
+                                                    <p class="font-semibold text-[#1f2937]">₱{{ subAccount.balance.toLocaleString() }}</p>
+                                                    <div class="flex gap-4 text-xs text-gray-500 mt-1">
+                                                        <span>D: ₱{{ subAccount.totalDebit.toLocaleString() }}</span>
+                                                        <span>C: ₱{{ subAccount.totalCredit.toLocaleString() }}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div class="text-right ml-4">
-                                                <p class="font-semibold text-[#1f2937]">₱{{ subAccount.balance.toLocaleString() }}</p>
-                                                <div class="flex gap-4 text-xs text-gray-500 mt-1">
-                                                    <span>D: ₱{{ subAccount.totalDebit.toLocaleString() }}</span>
-                                                    <span>C: ₱{{ subAccount.totalCredit.toLocaleString() }}</span>
-                                                </div>
-                                            </div>
-                                        </div>
 
-                                        <!-- Transactions -->
-                                        <template v-for="subAccount in accountGroup.subAccounts" :key="`trans-${subAccount.code}`">
                                             <div v-if="subAccount.expanded" class="bg-gray-50">
                                                 <table class="w-full text-sm">
                                                     <thead class="bg-gray-100 border-t border-gray-200">
@@ -136,14 +133,66 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody class="divide-y divide-gray-200">
-                                                        <tr v-for="(trans, idx) in subAccount.transactions" :key="idx" class="hover:bg-white">
+                                                        <template v-for="(trans, idx) in subAccount.transactions" :key="trans.id ?? idx">
+                                                        <tr
+                                                            class="hover:bg-white"
+                                                            :class="canViewPayrollBreakdown(subAccount, trans) ? 'cursor-pointer' : ''"
+                                                            @click="canViewPayrollBreakdown(subAccount, trans) ? togglePayrollBreakdown(subAccount, trans, idx) : null"
+                                                        >
                                                             <td class="px-6 py-2 text-gray-700 whitespace-nowrap">{{ trans.date }}</td>
-                                                            <td class="px-6 py-2 text-gray-700">{{ trans.desc }}</td>
+                                                            <td class="px-6 py-2 text-gray-700">
+                                                                <div class="font-medium">{{ trans.desc }}</div>
+                                                                <button
+                                                                    v-if="canViewPayrollBreakdown(subAccount, trans)"
+                                                                    type="button"
+                                                                    class="text-xs text-[#0c8ce9] hover:underline mt-1"
+                                                                    @click.stop="togglePayrollBreakdown(subAccount, trans, idx)"
+                                                                >
+                                                                    {{ isPayrollBreakdownExpanded(subAccount, trans, idx) ? 'Hide employee breakdown' : 'View employee breakdown' }}
+                                                                </button>
+                                                            </td>
                                                             <td class="px-6 py-2 text-gray-600">{{ trans.ref }}</td>
                                                             <td class="px-6 py-2 text-right text-gray-700">{{ trans.debit ? '₱' + trans.debit : '-' }}</td>
                                                             <td class="px-6 py-2 text-right text-gray-700">{{ trans.credit ? '₱' + trans.credit : '-' }}</td>
                                                             <td class="px-6 py-2 text-right font-semibold text-[#0c8ce9]">₱{{ trans.balance.toLocaleString() }}</td>
                                                         </tr>
+                                                        <tr v-if="isPayrollBreakdownExpanded(subAccount, trans, idx)">
+                                                            <td colspan="6" class="px-6 py-3 bg-white border-t border-dashed border-gray-200">
+                                                                <div v-if="payrollBreakdownLoading" class="text-sm text-gray-500">Loading payroll breakdown...</div>
+                                                                <div v-else-if="payrollBreakdownError" class="text-sm text-red-600">{{ payrollBreakdownError }}</div>
+                                                                <div v-else>
+                                                                    <div class="text-sm font-semibold text-gray-700 mb-2">
+                                                                        {{ payrollBreakdownPayrollName || trans.payrollRunName || 'Payroll Run' }}
+                                                                    </div>
+                                                                    <table class="w-full text-xs border border-gray-200 rounded">
+                                                                        <thead class="bg-gray-50">
+                                                                            <tr>
+                                                                                <th class="px-3 py-2 text-left font-semibold text-gray-700">Employee</th>
+                                                                                <th class="px-3 py-2 text-left font-semibold text-gray-700">Role</th>
+                                                                                <th class="px-3 py-2 text-right font-semibold text-gray-700">Debit</th>
+                                                                                <th class="px-3 py-2 text-right font-semibold text-gray-700">Credit</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            <tr
+                                                                                v-for="(row, rowIndex) in payrollBreakdownRows"
+                                                                                :key="`${row.employeeId}-${rowIndex}`"
+                                                                                class="border-t border-gray-100"
+                                                                            >
+                                                                                <td class="px-3 py-2 text-gray-700">{{ row.employee }}</td>
+                                                                                <td class="px-3 py-2 text-gray-600">{{ row.role || '-' }}</td>
+                                                                                <td class="px-3 py-2 text-right text-gray-700">{{ row.debit > 0 ? '₱' + row.debit.toLocaleString() : '-' }}</td>
+                                                                                <td class="px-3 py-2 text-right text-gray-700">{{ row.credit > 0 ? '₱' + row.credit.toLocaleString() : '-' }}</td>
+                                                                            </tr>
+                                                                            <tr v-if="!payrollBreakdownRows.length">
+                                                                                <td colspan="4" class="px-3 py-3 text-center text-gray-500">No employee-level payroll details found.</td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                        </template>
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -219,58 +268,240 @@
 </template>
 
 <script setup>
-    import { ref, computed, onMounted } from 'vue'
-    import { useAuthStore } from '@/stores/auth'
-    import agnes from '@/assets/agnes.gif'
-    import close from '@/assets/close.png'
-    import open from '@/assets/open.png'
+import { ref, computed, onMounted } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import axios from 'axios'
+import agnes from '@/assets/agnes.gif'
+import close from '@/assets/close.png'
+import open from '@/assets/open.png'
 
-    const auth = useAuthStore()
-    const loading = ref(false)
-    const filterType = ref('')
+const auth = useAuthStore()
+const loading = ref(false)
+const filterType = ref('')
+const payrollBreakdownKey = ref(null)
+const payrollBreakdownLoading = ref(false)
+const payrollBreakdownError = ref('')
+const payrollBreakdownRows = ref([])
+const payrollBreakdownPayrollName = ref('')
+const payrollBreakdownCache = ref({})
 
-    /* =====================================================
-    Modal State
-    ===================================================== */
-    const addChartAccountModal = ref(false)
-    const newChartAccount = ref({
-        code: '',
-        name: '',
-        type: 'asset',
-        subcategory: '',
-        description: '',
-        status: 'active'
+const addChartAccountModal = ref(false)
+const newChartAccount = ref({
+    code: '',
+    name: '',
+    type: 'asset',
+    subcategory: '',
+    description: '',
+    status: 'active'
+})
+
+const rangeGroups = [
+    { id: 1, name: '1000-1999 – Assets', type: 'asset', min: 1000, max: 1999, expanded: true },
+    { id: 2, name: '2000-2999 – Liabilities', type: 'liability', min: 2000, max: 2999, expanded: false },
+    { id: 3, name: '3000-3999 – Equity', type: 'equity', min: 3000, max: 3999, expanded: false },
+    { id: 4, name: '4000-4999 – Revenue', type: 'revenue', min: 4000, max: 4999, expanded: false },
+    { id: 5, name: '5000-5999 – Direct Costs (Project Costs)', type: 'expense', min: 5000, max: 5999, expanded: false },
+    { id: 6, name: '6000-6999 – Operating Expenses', type: 'expense', min: 6000, max: 6999, expanded: false }
+]
+
+const accounts = ref(rangeGroups.map(group => ({
+    ...group,
+    totalBalance: 0,
+    subAccounts: []
+})))
+
+const formatTransactionDate = (value) => {
+    if (!value) return '--'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+        return value
+    }
+
+    return date.toLocaleString('en-PH', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
     })
+}
 
-    const submitChartAccount = () => {
-        if (!newChartAccount.value.code || !newChartAccount.value.name) {
-            alert('Please fill in required fields (Code and Name)')
+const mapSubAccount = (row) => ({
+    code: row.code,
+    name: row.name,
+    subcategory: row.subcategory,
+    description: row.description,
+    status: row.status,
+    totalDebit: Number(row.total_debit || 0),
+    totalCredit: Number(row.total_credit || 0),
+    balance: Number(row.balance || 0),
+    expanded: false,
+    transactions: (row.transactions || []).map((transaction) => ({
+        id: transaction.id,
+        date: formatTransactionDate(transaction.transaction_date),
+        desc: transaction.description,
+        ref: transaction.reference,
+        payrollRunId: transaction.payroll_run_id,
+        payrollRunName: transaction.payroll_run?.name || null,
+        debit: Number(transaction.debit || 0),
+        credit: Number(transaction.credit || 0),
+        balance: Number(transaction.balance || 0)
+    }))
+})
+
+const makePayrollBreakdownKey = (subAccountCode, trans, idx) => `${subAccountCode}-${trans.id ?? idx}`
+
+const isPayrollBreakdownAccount = (subAccount) => {
+    const code = String(subAccount?.code || '')
+    return code === '2200' || code === '2210'
+}
+
+const canViewPayrollBreakdown = (subAccount, trans) => isPayrollBreakdownAccount(subAccount) && !!trans?.payrollRunId
+
+const isPayrollBreakdownExpanded = (subAccount, trans, idx) => payrollBreakdownKey.value === makePayrollBreakdownKey(subAccount.code, trans, idx)
+
+const toMoney = (value) => Number(Number(value || 0).toFixed(2))
+
+const getBreakdownAmount = (row, accountCode) => {
+    if (String(accountCode) === '2200') {
+        return toMoney(row.netPay)
+    }
+
+    if (String(accountCode) === '2210') {
+        return toMoney(row.tax)
+    }
+
+    return 0
+}
+
+const mapPayrollRowsToBreakdown = (rows, accountCode, trans) => {
+    const hasDebit = Number(trans?.debit || 0) > 0
+
+    return (rows || []).map((row) => {
+        const amount = getBreakdownAmount(row, accountCode)
+
+        return {
+        employeeId: row.id,
+        employee: row.employee || '--',
+        role: row.role || '--',
+        debit: hasDebit ? amount : 0,
+        credit: hasDebit ? 0 : amount
+        }
+    }).filter((row) => row.debit > 0 || row.credit > 0)
+}
+
+const togglePayrollBreakdown = async (subAccount, trans, idx) => {
+    const key = makePayrollBreakdownKey(subAccount.code, trans, idx)
+
+    if (payrollBreakdownKey.value === key) {
+        payrollBreakdownKey.value = null
+        return
+    }
+
+    payrollBreakdownKey.value = key
+    payrollBreakdownError.value = ''
+    payrollBreakdownRows.value = []
+    payrollBreakdownPayrollName.value = trans.payrollRunName || ''
+
+    const runId = trans.payrollRunId
+    if (!runId) {
+        payrollBreakdownError.value = 'No payroll run is linked to this transaction.'
+        return
+    }
+
+    if (payrollBreakdownCache.value[runId]) {
+        payrollBreakdownRows.value = payrollBreakdownCache.value[runId].rows
+        payrollBreakdownPayrollName.value = payrollBreakdownCache.value[runId].name || payrollBreakdownPayrollName.value
+        return
+    }
+
+    payrollBreakdownLoading.value = true
+    try {
+        const response = await axios.get(`/api/payroll-runs/${runId}/computed-payroll`)
+        const rows = response.data?.data || []
+        const mappedRows = mapPayrollRowsToBreakdown(rows, subAccount.code, trans)
+
+        payrollBreakdownRows.value = mappedRows
+        payrollBreakdownCache.value[runId] = {
+            name: trans.payrollRunName || '',
+            rows: mappedRows
+        }
+    } catch (error) {
+        console.error('Failed to load payroll breakdown', error)
+        payrollBreakdownError.value = error.response?.data?.message || 'Failed to load payroll breakdown.'
+    } finally {
+        payrollBreakdownLoading.value = false
+    }
+}
+
+const toCodeNumber = (code) => {
+    const parsed = Number.parseInt(String(code), 10)
+    return Number.isNaN(parsed) ? -1 : parsed
+}
+
+const buildGroupedAccounts = (rows) => {
+    const grouped = rangeGroups.map(group => ({
+        ...group,
+        totalBalance: 0,
+        subAccounts: []
+    }))
+
+    rows.forEach((row) => {
+        const code = toCodeNumber(row.code)
+        let target = grouped.find(group => code >= group.min && code <= group.max)
+
+        if (!target) {
+            target = grouped.find(group => group.type === row.type)
+        }
+
+        if (!target) {
             return
         }
 
-        // Add new account to the appropriate group
-        const accountType = newChartAccount.value.type
-        const accountGroup = accounts.value.find(acc => acc.type === accountType)
-        
-        if (accountGroup) {
-            accountGroup.subAccounts.unshift({
-                code: newChartAccount.value.code,
-                name: newChartAccount.value.name,
-                subcategory: newChartAccount.value.subcategory,
-                description: newChartAccount.value.description,
-                status: newChartAccount.value.status,
-                totalDebit: 0,
-                totalCredit: 0,
-                balance: 0,
-                expanded: false,
-                transactions: []
-            })
-            
-            // Expand the group
-            accountGroup.expanded = true
-        }
+        target.subAccounts.push(mapSubAccount(row))
+    })
 
-        // Reset form
+    grouped.forEach(group => {
+        group.subAccounts.sort((a, b) => toCodeNumber(a.code) - toCodeNumber(b.code))
+        group.totalBalance = group.subAccounts.reduce((sum, item) => sum + Number(item.balance || 0), 0)
+    })
+
+    return grouped
+}
+
+const fetchChartAccounts = async () => {
+    loading.value = true
+    try {
+        const response = await axios.get('/api/chart-accounts')
+        const rows = response.data?.data || []
+        accounts.value = buildGroupedAccounts(rows)
+    } catch (error) {
+        console.error('Failed to load chart accounts', error)
+    } finally {
+        loading.value = false
+    }
+}
+
+const submitChartAccount = async () => {
+    const code = newChartAccount.value.code.trim()
+    const name = newChartAccount.value.name.trim()
+
+    if (!code || !name) {
+        alert('Please fill in required fields (Code and Name)')
+        return
+    }
+
+    loading.value = true
+    try {
+        await axios.post('/api/chart-accounts', {
+            code,
+            name,
+            type: newChartAccount.value.type,
+            subcategory: newChartAccount.value.subcategory || null,
+            description: newChartAccount.value.description || null,
+            status: newChartAccount.value.status || 'active'
+        })
+
         newChartAccount.value = {
             code: '',
             name: '',
@@ -279,103 +510,38 @@
             description: '',
             status: 'active'
         }
+
         addChartAccountModal.value = false
+        await fetchChartAccounts()
+    } catch (error) {
+        console.error('Failed to add chart account', error)
+        const message = error.response?.data?.message || 'Failed to add chart account.'
+        alert(message)
+    } finally {
+        loading.value = false
     }
+}
 
-    const accounts = ref([
-        {
-            id: 1,
-            name: 'Assets',
-            type: 'asset',
-            totalBalance: 2450000,
-            expanded: true,
-            subAccounts: [
-                {
-                    code: '1010',
-                    name: 'Cash on Hand',
-                    totalDebit: 500000,
-                    totalCredit: 200000,
-                    balance: 300000,
-                    expanded: false,
-                    transactions: [
-                        { date: 'Jan 15, 2026', desc: 'Client Payment - Project A', ref: 'OR-001', debit: 150000, credit: null, balance: 150000 },
-                        { date: 'Jan 20, 2026', desc: 'Subcontractor Payment', ref: 'CV-032', debit: null, credit: 50000, balance: 100000 }
-                    ]
-                },
-                {
-                    code: '1020',
-                    name: 'Materials Inventory',
-                    totalDebit: 800000,
-                    totalCredit: 300000,
-                    balance: 500000,
-                    expanded: false,
-                    transactions: [
-                        { date: 'Jan 10, 2026', desc: 'Material Purchase - Steel', ref: 'PO-156', debit: 350000, credit: null, balance: 350000 },
-                        { date: 'Jan 18, 2026', desc: 'Material Issue - Project B', ref: 'MI-045', debit: null, credit: 150000, balance: 200000 }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 2,
-            name: 'Liabilities',
-            type: 'liability',
-            totalBalance: 850000,
-            expanded: false,
-            subAccounts: [
-                {
-                    code: '2010',
-                    name: 'Accounts Payable',
-                    totalDebit: 200000,
-                    totalCredit: 600000,
-                    balance: 400000,
-                    expanded: false,
-                    transactions: [
-                        { date: 'Jan 5, 2026', desc: 'Contractor Invoice - Labor', ref: 'INV-5001', debit: null, credit: 300000, balance: 300000 },
-                        { date: 'Jan 25, 2026', desc: 'Payment to Contractor', ref: 'CV-050', debit: 150000, credit: null, balance: 150000 }
-                    ]
-                }
-            ]
-        },
-        {
-            id: 3,
-            name: 'Equity',
-            type: 'equity',
-            totalBalance: 1600000,
-            expanded: false,
-            subAccounts: [
-                {
-                    code: '3010',
-                    name: 'Capital Stock',
-                    totalDebit: 0,
-                    totalCredit: 1600000,
-                    balance: 1600000,
-                    expanded: false,
-                    transactions: []
-                }
-            ]
-        }
-    ])
+const filteredAccounts = computed(() => {
+    if (!filterType.value) return accounts.value
+    return accounts.value.filter(a => a.type === filterType.value)
+})
 
-    const filteredAccounts = computed(() => {
-        if (!filterType.value) return accounts.value
-        return accounts.value.filter(a => a.type === filterType.value)
-    })
+const toggleGroup = (id) => {
+    const account = accounts.value.find(a => a.id === id)
+    if (account) account.expanded = !account.expanded
+}
 
-    const toggleGroup = (id) => {
-        const account = accounts.value.find(a => a.id === id)
-        if (account) account.expanded = !account.expanded
+const toggleSubAccount = (accountId, subAccountCode) => {
+    const account = accounts.value.find(a => a.id === accountId)
+    if (account) {
+        const subAccount = account.subAccounts.find(sa => sa.code === subAccountCode)
+        if (subAccount) subAccount.expanded = !subAccount.expanded
     }
+}
 
-    const toggleSubAccount = (accountId, subAccountCode) => {
-        const account = accounts.value.find(a => a.id === accountId)
-        if (account) {
-            const subAccount = account.subAccounts.find(sa => sa.code === subAccountCode)
-            if (subAccount) subAccount.expanded = !subAccount.expanded
-        }
-    }
-
-    onMounted(() => {
-        auth.pageTitle = 'General Ledger'    
-    })
+onMounted(async () => {
+    auth.pageTitle = 'General Ledger'
+    await fetchChartAccounts()
+})
 </script>

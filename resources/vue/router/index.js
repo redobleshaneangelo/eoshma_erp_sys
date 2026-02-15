@@ -25,6 +25,8 @@ import Communications from '@/views/Pages/Communications.vue'
 import PendingApproval from '@/views/Pages/PendingApprovals.vue'
 import PendingRequests from '@/views/Pages/PendingRequests.vue'
 import Reports from '@/views/Pages/Reports.vue'
+import EmployeeNotifications from '@/views/Pages/Employee/Notifications.vue'
+import EmployeePayslipView from '@/views/Pages/Employee/PayslipView.vue'
 
 /*
 |--------------------------------------------------------------------------
@@ -70,6 +72,7 @@ import PreviewReport from '@/views/Pages/HR/Reports/PreviewReport.vue'
 */
 
 import GeneralLedger from '@/views/Pages/FRM/General Ledger/GeneralLedger.vue'
+import Liabilities from '@/views/Pages/FRM/Liabilities/Liabilities.vue'
 
 import Payables from '@/views/Pages/FRM/Payables/Payables.vue'
 
@@ -156,6 +159,8 @@ const routes = [
     { path: '/pending-approvals', name: 'pending-approvals', component: PendingApproval , meta: { requiresAuth: true } },
     { path: '/pending-requests', name: 'pending-requests', component: PendingRequests, meta: { requiresAuth: true } },
     { path: '/reports', name: 'reports', component: Reports, meta: { requiresAuth: true } },
+    { path: '/notifications', name: 'employee_notifications', component: EmployeeNotifications, meta: { requiresAuth: true } },
+    { path: '/my-payslip/:id', name: 'my_payslip', component: EmployeePayslipView, meta: { requiresAuth: true } },
 
     /*
     |--------------------------------------------------------------------------
@@ -216,6 +221,9 @@ const routes = [
 
     // General Ledger
     { path: '/general-ledger', name: 'general_ledger', component: GeneralLedger, meta: { requiresAuth: true } },
+
+    // Liabilities
+    { path: '/liabilities', name: 'liabilities', component: Liabilities, meta: { requiresAuth: true } },
     
     // Payables
     { path: '/payables', name: 'payables', component: Payables, meta: { requiresAuth: true } },

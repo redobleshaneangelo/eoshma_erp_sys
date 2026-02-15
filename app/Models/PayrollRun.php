@@ -18,7 +18,8 @@ class PayrollRun extends Model
         'payroll_group_id',
         'status',
         'pay_date',
-        'description'
+        'description',
+        'reject_reason'
     ];
 
     protected function casts(): array

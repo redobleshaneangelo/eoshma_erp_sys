@@ -338,7 +338,7 @@
         router.push({
             name: 'payroll_run_detail',
             params: { id: run.id },
-            query: { mode: 'approval' }
+            query: { mode: 'eligibility' }
         })
     }
 

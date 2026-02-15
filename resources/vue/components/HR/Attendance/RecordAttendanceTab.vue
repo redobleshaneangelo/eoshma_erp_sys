@@ -181,7 +181,13 @@
                                 Time In
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                Time In Location
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
                                 Time Out
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                Time Out Location
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
                                 Status
@@ -215,6 +221,10 @@
                                     </button>
                                 </div>
                             </td>
+                            <td class="px-6 py-4 text-sm text-gray-700">
+                                <div v-if="record.timeInGeo?.label" class="font-medium">{{ record.timeInGeo.label }}</div>
+                                <div v-else class="text-gray-400 text-xs">—</div>
+                            </td>
                             <td class="px-6 py-4 text-sm font-semibold">
                                 <div class="flex items-center gap-2">
                                     <span
@@ -232,6 +242,10 @@
                                         View
                                     </button>
                                 </div>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-700">
+                                <div v-if="record.timeOutGeo?.label" class="font-medium">{{ record.timeOutGeo.label }}</div>
+                                <div v-else class="text-gray-400 text-xs">—</div>
                             </td>
                             <td class="px-6 py-4 text-sm">
                                 <span
@@ -331,6 +345,10 @@
                         <div><strong>Day:</strong> {{ photoPreviewRecord.dayOfWeek }}</div>
                         <div><strong>Time In:</strong> {{ photoPreviewRecord.timeIn || '—' }}</div>
                         <div><strong>Time Out:</strong> {{ photoPreviewRecord.timeOut || '—' }}</div>
+                        <div><strong>Time In Location:</strong> {{ photoPreviewRecord.timeInGeo?.label || '—' }}</div>
+                        <div><strong>Time Out Location:</strong> {{ photoPreviewRecord.timeOutGeo?.label || '—' }}</div>
+                        <div><strong>Time In Coordinates:</strong> {{ geoSummary(photoPreviewRecord.timeInGeo) }}</div>
+                        <div><strong>Time Out Coordinates:</strong> {{ geoSummary(photoPreviewRecord.timeOutGeo) }}</div>
                         <div><strong>Status:</strong> {{ formatStatus(photoPreviewRecord.status) }}</div>
                     </div>
                     <div class="flex items-center justify-center">
@@ -921,6 +939,17 @@
         selectedStatus.value = ''
         selectedDate.value = ''
         currentPage.value = 1
+    }
+
+    const geoSummary = (geo) => {
+        if (!geo || geo.latitude == null || geo.longitude == null) {
+            return '—'
+        }
+
+        const lat = Number(geo.latitude).toFixed(6)
+        const lng = Number(geo.longitude).toFixed(6)
+        const accuracy = geo.accuracy != null ? ` (±${Number(geo.accuracy).toFixed(0)}m)` : ''
+        return `${lat}, ${lng}${accuracy}`
     }
 
     const editRecord = (record) => {

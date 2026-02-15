@@ -198,6 +198,12 @@
                                                         <div v-if="currentWorker.address">
                                                             <strong>Address:</strong> {{ currentWorker.address }}
                                                         </div>
+                                                        <div v-if="currentWorker.scanLocationLabel">
+                                                            <strong>Scan Location:</strong> {{ currentWorker.scanLocationLabel }}
+                                                        </div>
+                                                        <div v-if="currentWorker.scanCoordinates">
+                                                            <strong>Coordinates:</strong> {{ currentWorker.scanCoordinates }}
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -264,6 +270,16 @@
 
                                 <p v-if="summaryData.contact_number">
                                     <strong>Contact:</strong> {{ summaryData.contact_number }}
+                                </p>
+
+                                <p v-if="summaryData.geolocation">
+                                    <strong>Location:</strong>
+                                    {{ summaryData.geolocation.latitude.toFixed(6) }},
+                                    {{ summaryData.geolocation.longitude.toFixed(6) }}
+                                </p>
+
+                                <p v-if="summaryData.geolocation?.label">
+                                    <strong>Resolved Place:</strong> {{ summaryData.geolocation.label }}
                                 </p>
 
                                 <p>
@@ -355,6 +371,7 @@ const photoStream = ref(null)
 
 const scanMode = ref('checkin') // 'checkin' | 'checkout'
 const currentScanData = ref(null)
+const currentGeo = ref(null)
 
 const employeeId = ref(null)
 const todayRecord = ref(null)
@@ -566,6 +583,22 @@ const handleScanResult = async (data) => {
 ===================================================== */
 const startPhotoCapture = async () => {
     try {
+        const geo = await requireCurrentGeolocation()
+        if (!geo) {
+            return
+        }
+
+        const detailedGeo = await enrichGeolocation(geo)
+        currentGeo.value = detailedGeo
+
+        if (currentWorker.value) {
+            currentWorker.value = {
+                ...currentWorker.value,
+                scanLocationLabel: detailedGeo.label || null,
+                scanCoordinates: `${Number(detailedGeo.latitude).toFixed(6)}, ${Number(detailedGeo.longitude).toFixed(6)}`
+            }
+        }
+
         showPhotoCapture.value = true
 
         if (isScanning.value) {
@@ -607,7 +640,8 @@ const capturePhoto = () => {
                 scan_time: scanTime,
                 scanMode,
                 generated_at: scanTime,
-                photo: photoDataUrl
+                photo: photoDataUrl,
+                geolocation: currentGeo.value
             }
         } else {
             summaryData.value = {
@@ -628,6 +662,7 @@ const cancelPhotoCapture = () => {
     stopPhotoCapture()
     showPhotoCapture.value = false
     currentScanData.value = null
+    currentGeo.value = null
 }
 
 const stopPhotoCapture = () => {
@@ -656,6 +691,7 @@ const confirmAttendance = async () => {
                 await axios.patch(`/api/attendance/records/${date}`, {
                     time_in: timeValue,
                     time_in_photo: summaryData.value.photo,
+                    time_in_geo: summaryData.value.geolocation,
                     qr_payload: qrPayload
                 })
 
@@ -672,6 +708,7 @@ const confirmAttendance = async () => {
                 await axios.patch(`/api/attendance/records/${date}`, {
                     time_out: timeValue,
                     time_out_photo: summaryData.value.photo,
+                    time_out_geo: summaryData.value.geolocation,
                     qr_payload: qrPayload
                 })
 
@@ -690,6 +727,7 @@ const confirmAttendance = async () => {
             closeSummaryModal()
             summaryData.value = null
             currentScanData.value = null
+            currentGeo.value = null
 
             // Auto-hide success message after 3 seconds (don't restart scanner)
             setTimeout(() => {
@@ -729,6 +767,7 @@ const confirmAttendance = async () => {
             summaryData.value = null
             currentScanData.value = null
             currentWorker.value = null
+            currentGeo.value = null
         }
     }
 }
@@ -744,6 +783,77 @@ const retakePhoto = () => {
 const closeSummaryModal = () => {
     showSummaryModal.value = false
     summaryData.value = null
+}
+
+const requireCurrentGeolocation = async () => {
+    if (!navigator.geolocation) {
+        await Swal.fire({
+            icon: 'error',
+            title: 'Location Not Supported',
+            text: 'This device/browser does not support geolocation, so photo capture is disabled.'
+        })
+        return null
+    }
+
+    try {
+        return await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve({
+                        latitude: Number(position.coords.latitude),
+                        longitude: Number(position.coords.longitude),
+                        accuracy: Number(position.coords.accuracy || 0)
+                    })
+                },
+                (error) => {
+                    reject(error)
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            )
+        })
+    } catch (error) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'Location Permission Required',
+            text: 'You must allow location access before taking attendance photos.'
+        })
+        return null
+    }
+}
+
+const enrichGeolocation = async (geo) => {
+    try {
+        const response = await axios.get('/api/location/reverse', {
+            params: {
+                latitude: geo.latitude,
+                longitude: geo.longitude
+            }
+        })
+
+        const location = response.data?.data || {}
+
+        return {
+            ...geo,
+            label: location.label || null,
+            city: location.city || null,
+            province: location.province || null,
+            country: location.country || null,
+            displayName: location.displayName || null
+        }
+    } catch {
+        return {
+            ...geo,
+            label: null,
+            city: null,
+            province: null,
+            country: null,
+            displayName: null
+        }
+    }
 }
 
 /* =====================================================

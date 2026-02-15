@@ -6,12 +6,21 @@
                     <div class="text-[40px] text-[#2B2B2B] font-bold">
                         <div>{{ auth.pageTitle }}</div>
                     </div>
-                    <div class="ms-auto flex items-end pb-5 font-bold text-[#2B2B2B]">
+                    <router-link
+                        to="/notifications"
+                        class="ms-auto relative flex items-end pb-5 font-bold text-[#2B2B2B] hover:text-[#0c8ce9] transition-colors"
+                    >
                         Notifications
                         <svg class="w-5 h-5 ms-2" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
                         </svg>
-                    </div>
+                        <span
+                            v-if="unreadCount > 0"
+                            class="absolute -top-0.5 -right-2 min-w-4.5 h-4.5 px-1 rounded-full bg-red-600 text-white text-[10px] leading-4.5 text-center font-bold"
+                        >
+                            {{ unreadCount > 99 ? '99+' : unreadCount }}
+                        </span>
+                    </router-link>
                 </div>
             </div>
         </div>
@@ -135,7 +144,7 @@
     /* =====================================================
     Core Imports
     ===================================================== */
-    import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+    import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
     import { useRouter, useRoute } from 'vue-router'
     import axios from 'axios'
     import Swal from 'sweetalert2'
@@ -178,6 +187,21 @@
     UI State
     ===================================================== */
     const loading = ref(false)
+    const unreadCount = ref(0)
+
+    const fetchUnreadNotifications = async () => {
+        if (!auth.isAuthenticated) {
+            unreadCount.value = 0
+            return
+        }
+
+        try {
+            const response = await axios.get('/api/employee/notifications')
+            unreadCount.value = Number(response.data?.meta?.unread || 0)
+        } catch {
+            unreadCount.value = 0
+        }
+    }
 
     /* =====================================================
     Toast Helper
@@ -274,7 +298,11 @@
     Lifecycle
     ===================================================== */
     onMounted(() => {
-        // Init logic here if needed
+        fetchUnreadNotifications()
+    })
+
+    watch(() => route.fullPath, () => {
+        fetchUnreadNotifications()
     })
 </script>
 

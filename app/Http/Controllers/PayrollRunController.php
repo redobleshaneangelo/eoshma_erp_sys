@@ -13,8 +13,13 @@ use App\Models\OvertimeRate;
 use App\Models\OvertimeRequest;
 use App\Models\PayrollGroup;
 use App\Models\UsersSalaryType;
+use App\Models\ChartAccount;
+use App\Models\ChartAccountTransaction;
+use App\Models\EmployeePayslip;
+use App\Notifications\PayslipReleasedNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PayrollRunController extends Controller
 {
@@ -445,7 +450,75 @@ class PayrollRunController extends Controller
 
     public function sendForApproval(PayrollRun $payrollRun)
     {
-        $payrollRun->update(['status' => 'Pending']);
+        if ($payrollRun->status === 'Pending') {
+            return response()->json([
+                'message' => 'This payroll run is already pending HR approval.'
+            ], 422);
+        }
+
+        if (in_array($payrollRun->status, ['Pending Finance Approval', 'Approved', 'Completed'], true)) {
+            return response()->json([
+                'message' => 'This payroll run cannot be sent to HR pending at its current status.'
+            ], 422);
+        }
+
+        if (!in_array($payrollRun->status, ['Draft', 'Rejected'], true)) {
+            return response()->json([
+                'message' => 'Only draft or rejected payroll runs can be sent for HR approval.'
+            ], 422);
+        }
+
+        $payrollRun->update([
+            'status' => 'Pending',
+            'reject_reason' => null
+        ]);
+
+        return response()->json([
+            'data' => $payrollRun
+        ]);
+    }
+
+    public function sendToFinanceApproval(PayrollRun $payrollRun)
+    {
+        if ($payrollRun->status !== 'Pending') {
+            return response()->json([
+                'message' => 'Only payroll runs with Pending status can be sent to Finance approval.'
+            ], 422);
+        }
+
+        $eligibleCount = PayrollRunEligibility::query()
+            ->where('payroll_run_id', $payrollRun->id)
+            ->where('is_eligible', true)
+            ->count();
+
+        if ($eligibleCount < 1) {
+            return response()->json([
+                'message' => 'Cannot proceed: at least one employee must be marked eligible.'
+            ], 422);
+        }
+
+        $breakdown = $this->buildPayrollPostingBreakdown($payrollRun);
+
+        if ($breakdown['totalCredits'] <= 0) {
+            return response()->json([
+                'message' => 'Cannot send for approval because computed payroll amount is zero.'
+            ], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($payrollRun, $breakdown) {
+                $this->clearPayrollPosting($payrollRun->id);
+                $this->postPayrollToLedger($payrollRun, $breakdown);
+                $payrollRun->update([
+                    'status' => 'Pending Finance Approval',
+                    'reject_reason' => null
+                ]);
+            });
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage()
+            ], 422);
+        }
 
         return response()->json([
             'data' => $payrollRun
@@ -454,7 +527,36 @@ class PayrollRunController extends Controller
 
     public function approve(PayrollRun $payrollRun)
     {
+        if ($payrollRun->status !== 'Pending Finance Approval') {
+            return response()->json([
+                'message' => 'Only payroll runs pending Finance approval can be approved.'
+            ], 422);
+        }
+
         $payrollRun->update(['status' => 'Approved']);
+
+        return response()->json([
+            'data' => $payrollRun
+        ]);
+    }
+
+    public function reject(Request $request, PayrollRun $payrollRun)
+    {
+        if (!in_array($payrollRun->status, ['Pending Finance Approval', 'Pending'], true)) {
+            return response()->json([
+                'message' => 'Only pending payroll runs can be rejected.'
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000']
+        ]);
+
+        $this->clearPayrollPosting($payrollRun->id);
+        $payrollRun->update([
+            'status' => 'Rejected',
+            'reject_reason' => $validated['reason']
+        ]);
 
         return response()->json([
             'data' => $payrollRun
@@ -463,7 +565,32 @@ class PayrollRunController extends Controller
 
     public function releasePayslip(PayrollRun $payrollRun)
     {
-        $payrollRun->update(['status' => 'Completed']);
+        if ($payrollRun->status === 'Completed') {
+            return response()->json([
+                'message' => 'This payroll run has already been released.'
+            ], 422);
+        }
+
+        if ($payrollRun->status !== 'Approved') {
+            return response()->json([
+                'message' => 'Only approved payroll runs can release payslips.'
+            ], 422);
+        }
+
+        $breakdown = $this->buildPayrollPostingBreakdown($payrollRun);
+        $computed = $this->buildComputedRows($payrollRun);
+
+        try {
+            DB::transaction(function () use ($payrollRun, $breakdown, $computed) {
+                $this->postPayrollSettlementOnRelease($payrollRun, $breakdown);
+                $this->generatePayslipsAndNotifyEmployees($payrollRun, $computed['rows']);
+                $payrollRun->update(['status' => 'Completed']);
+            });
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage()
+            ], 422);
+        }
 
         return response()->json([
             'data' => $payrollRun
@@ -566,9 +693,257 @@ class PayrollRunController extends Controller
         ];
     }
 
+    private function buildPayrollPostingBreakdown(PayrollRun $payrollRun): array
+    {
+        $computed = $this->buildComputedRows($payrollRun);
+        $eligibleIds = PayrollRunEligibility::query()
+            ->where('payroll_run_id', $payrollRun->id)
+            ->where('is_eligible', true)
+            ->pluck('employee_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        $rows = collect($computed['rows'])
+            ->filter(fn ($row) => in_array((int) ($row['id'] ?? 0), $eligibleIds, true))
+            ->values();
+
+        $netPay = round((float) $rows->sum(fn ($row) => (float) ($row['netPay'] ?? 0)), 2);
+        $withholdingTax = round((float) $rows->sum(fn ($row) => (float) ($row['tax'] ?? 0)), 2);
+
+        $sssEmployee = 0;
+        $sssEmployer = 0;
+        $philEmployee = 0;
+        $philEmployer = 0;
+        $pagibigEmployee = 0;
+        $pagibigEmployer = 0;
+
+        foreach ($rows as $row) {
+            $gross = (float) ($row['grossPay'] ?? 0);
+            $base = max($gross, 0);
+            $philBase = min(max($gross, 10000), 100000);
+
+            $sssEmployee += round($base * 0.045, 2);
+            $sssEmployer += round($base * 0.095, 2);
+            $philEmployee += round($philBase * 0.025, 2);
+            $philEmployer += round($philBase * 0.025, 2);
+            $pagibigEmployee += round(min($base * 0.02, 100), 2);
+            $pagibigEmployer += round(min($base * 0.02, 100), 2);
+        }
+
+        $sssPayable = round($sssEmployee + $sssEmployer, 2);
+        $philPayable = round($philEmployee + $philEmployer, 2);
+        $pagibigPayable = round($pagibigEmployee + $pagibigEmployer, 2);
+        $employeeContrib = round($sssEmployee + $philEmployee + $pagibigEmployee, 2);
+        $employerContrib = round($sssEmployer + $philEmployer + $pagibigEmployer, 2);
+
+        $salaryExpenseDebit = round($netPay + $withholdingTax + $employeeContrib, 2);
+        $employerExpenseDebit = round($employerContrib, 2);
+
+        $totalDebits = round($salaryExpenseDebit + $employerExpenseDebit, 2);
+        $totalCredits = round($netPay + $withholdingTax + $sssPayable + $philPayable + $pagibigPayable, 2);
+
+        return [
+            'salaryExpenseDebit' => $salaryExpenseDebit,
+            'employerExpenseDebit' => $employerExpenseDebit,
+            'payrollPayable' => round($netPay, 2),
+            'withholdingTaxPayable' => round($withholdingTax, 2),
+            'sssPayable' => $sssPayable,
+            'philPayable' => $philPayable,
+            'pagibigPayable' => $pagibigPayable,
+            'totalDebits' => $totalDebits,
+            'totalCredits' => $totalCredits,
+        ];
+    }
+
+    private function postPayrollToLedger(PayrollRun $payrollRun, array $breakdown): void
+    {
+        $payrollPayable = ChartAccount::query()->where('code', '2200')->first();
+        $withholdingPayable = ChartAccount::query()->where('code', '2210')->first();
+        $sssPayable = ChartAccount::query()->where('code', '2220')->first();
+        $philPayable = ChartAccount::query()->where('code', '2230')->first();
+        $pagibigPayable = ChartAccount::query()->where('code', '2240')->first();
+
+        $salaryExpense = ChartAccount::query()->where('code', '6100')->first();
+        $employerContributionExpense = ChartAccount::query()->where('code', '6110')->first();
+
+        if (
+            !$payrollPayable || !$withholdingPayable || !$sssPayable || !$philPayable || !$pagibigPayable
+            || !$salaryExpense || !$employerContributionExpense
+        ) {
+            throw new \RuntimeException('Missing required finance chart account codes 2200, 2210, 2220, 2230, 2240, 6100, or 6110.');
+        }
+
+        if (round((float) $breakdown['totalDebits'], 2) !== round((float) $breakdown['totalCredits'], 2)) {
+            throw new \RuntimeException('Unbalanced payroll posting detected. Debits and credits must be equal.');
+        }
+
+        $reference = 'PR-' . $payrollRun->id;
+        $description = 'Payroll submission for finance approval';
+
+        if ((float) $breakdown['salaryExpenseDebit'] > 0) {
+            $this->appendTransaction($salaryExpense, $payrollRun->id, $payrollRun->pay_date, $description, $reference, (float) $breakdown['salaryExpenseDebit'], 0);
+        }
+
+        if ((float) $breakdown['employerExpenseDebit'] > 0) {
+            $this->appendTransaction($employerContributionExpense, $payrollRun->id, $payrollRun->pay_date, $description, $reference, (float) $breakdown['employerExpenseDebit'], 0);
+        }
+
+        if ((float) $breakdown['payrollPayable'] > 0) {
+            $this->appendTransaction($payrollPayable, $payrollRun->id, $payrollRun->pay_date, $description, $reference, 0, (float) $breakdown['payrollPayable']);
+        }
+
+        if ((float) $breakdown['withholdingTaxPayable'] > 0) {
+            $this->appendTransaction($withholdingPayable, $payrollRun->id, $payrollRun->pay_date, $description, $reference, 0, (float) $breakdown['withholdingTaxPayable']);
+        }
+
+        if ((float) $breakdown['sssPayable'] > 0) {
+            $this->appendTransaction($sssPayable, $payrollRun->id, $payrollRun->pay_date, $description, $reference, 0, (float) $breakdown['sssPayable']);
+        }
+
+        if ((float) $breakdown['philPayable'] > 0) {
+            $this->appendTransaction($philPayable, $payrollRun->id, $payrollRun->pay_date, $description, $reference, 0, (float) $breakdown['philPayable']);
+        }
+
+        if ((float) $breakdown['pagibigPayable'] > 0) {
+            $this->appendTransaction($pagibigPayable, $payrollRun->id, $payrollRun->pay_date, $description, $reference, 0, (float) $breakdown['pagibigPayable']);
+        }
+    }
+
+    private function postPayrollSettlementOnRelease(PayrollRun $payrollRun, array $breakdown): void
+    {
+        $payrollPayable = ChartAccount::query()->where('code', '2200')->first();
+        $cashInBank = ChartAccount::query()->where('code', '1110')->first();
+
+        if (!$payrollPayable || !$cashInBank) {
+            throw new \RuntimeException('Missing required finance chart account codes 2200 or 1110 for payroll settlement.');
+        }
+
+        $amount = round((float) ($breakdown['payrollPayable'] ?? 0), 2);
+        if ($amount <= 0) {
+            throw new \RuntimeException('Cannot release payslip because payroll payable amount is zero.');
+        }
+
+        $reference = 'PR-' . $payrollRun->id;
+        $description = 'Payroll payslip release settlement';
+
+        $this->appendTransaction($payrollPayable, $payrollRun->id, $payrollRun->pay_date, $description, $reference, $amount, 0);
+        $this->appendTransaction($cashInBank, $payrollRun->id, $payrollRun->pay_date, $description, $reference, 0, $amount);
+    }
+
+    private function generatePayslipsAndNotifyEmployees(PayrollRun $payrollRun, $rows): void
+    {
+        foreach ($rows as $row) {
+            $employeeId = (int) ($row['id'] ?? 0);
+            if ($employeeId <= 0) {
+                continue;
+            }
+
+            $otherDeductions = round(max(0, (float) ($row['deductions'] ?? 0) - (float) ($row['tax'] ?? 0)), 2);
+
+            $payslip = EmployeePayslip::updateOrCreate(
+                [
+                    'employee_id' => $employeeId,
+                    'payroll_run_id' => $payrollRun->id
+                ],
+                [
+                    'period_start' => $payrollRun->start_date,
+                    'period_end' => $payrollRun->end_date,
+                    'pay_date' => $payrollRun->pay_date,
+                    'basic_pay' => (float) ($row['basicPay'] ?? 0),
+                    'overtime_pay' => (float) ($row['overtimePay'] ?? 0),
+                    'allowances' => (float) ($row['allowance'] ?? 0),
+                    'gross_pay' => (float) ($row['grossPay'] ?? 0),
+                    'taxes' => (float) ($row['tax'] ?? 0),
+                    'other_deductions' => $otherDeductions,
+                    'total_deductions' => (float) ($row['deductions'] ?? 0),
+                    'net_pay' => (float) ($row['netPay'] ?? 0),
+                    'released_at' => now()
+                ]
+            );
+
+            $employee = EmployeeTest::with('user')->find($employeeId);
+            if (!$employee?->user) {
+                continue;
+            }
+
+            $employee->user->notify(new PayslipReleasedNotification($payrollRun, $payslip));
+        }
+    }
+
+    private function appendTransaction(ChartAccount $account, int $payrollRunId, $transactionDate, string $description, string $reference, float $debit, float $credit): void
+    {
+        $priorBalance = (float) $account->balance;
+        $newBalance = round($priorBalance + $debit - $credit, 2);
+
+        ChartAccountTransaction::create([
+            'chart_account_id' => $account->id,
+            'payroll_run_id' => $payrollRunId,
+            'transaction_date' => $transactionDate,
+            'description' => $description,
+            'reference' => $reference,
+            'debit' => round($debit, 2),
+            'credit' => round($credit, 2),
+            'balance' => $newBalance
+        ]);
+
+        $account->update([
+            'total_debit' => round((float) $account->total_debit + $debit, 2),
+            'total_credit' => round((float) $account->total_credit + $credit, 2),
+            'balance' => $newBalance
+        ]);
+    }
+
+    private function clearPayrollPosting(int $payrollRunId): void
+    {
+        $transactions = ChartAccountTransaction::query()
+            ->where('payroll_run_id', $payrollRunId)
+            ->get();
+
+        if ($transactions->isEmpty()) {
+            return;
+        }
+
+        foreach ($transactions as $transaction) {
+            $account = ChartAccount::find($transaction->chart_account_id);
+            if ($account) {
+                $account->update([
+                    'total_debit' => round(max(0, (float) $account->total_debit - (float) $transaction->debit), 2),
+                    'total_credit' => round(max(0, (float) $account->total_credit - (float) $transaction->credit), 2),
+                ]);
+            }
+        }
+
+        ChartAccountTransaction::query()
+            ->where('payroll_run_id', $payrollRunId)
+            ->delete();
+
+        $this->recomputeAllBalances();
+    }
+
+    private function recomputeAllBalances(): void
+    {
+        $accounts = ChartAccount::query()->orderBy('code')->get();
+
+        foreach ($accounts as $account) {
+            $running = 0;
+            $accountTransactions = ChartAccountTransaction::query()
+                ->where('chart_account_id', $account->id)
+                ->orderBy('transaction_date')
+                ->orderBy('id')
+                ->get();
+
+            foreach ($accountTransactions as $entry) {
+                $running = round($running + (float) $entry->debit - (float) $entry->credit, 2);
+                $entry->update(['balance' => $running]);
+            }
+
+            $account->update(['balance' => $running]);
+        }
+    }
+
     private function shouldFilterEligible(PayrollRun $payrollRun): bool
     {
-        return in_array($payrollRun->status, ['Pending', 'Approved', 'Completed'], true);
+        return in_array($payrollRun->status, ['Pending', 'Pending Finance Approval', 'Approved', 'Completed'], true);
     }
 
     private function attendanceRows(PayrollRun $payrollRun)

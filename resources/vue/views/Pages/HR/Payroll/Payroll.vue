@@ -223,6 +223,7 @@ watch(
 const tabs = [
     { key: 'payroll_runs', label: 'Payroll Runs' },
     { key: 'draft', label: 'Draft' },
+    { key: 'rejected', label: 'Rejected' },
     { key: 'pending', label: 'Pending' },
     { key: 'approved', label: 'Approved' }
 ]
@@ -243,7 +244,8 @@ const mapRun = (payload) => ({
     payrollGroupId: payload.payroll_group_id,
     status: payload.status,
     payDate: payload.pay_date,
-    description: payload.description
+    description: payload.description,
+    rejectReason: payload.reject_reason || null
 })
 
 const fetchPayrollRuns = async () => {
@@ -282,7 +284,8 @@ const newPayrollRun = ref({
 const filteredPayrollRuns = computed(() => {
     if (activeTab.value === 'payroll_runs') return payrollRuns.value.filter(run => run.status === 'Completed')
     if (activeTab.value === 'draft') return payrollRuns.value.filter(run => run.status === 'Draft')
-    if (activeTab.value === 'pending') return payrollRuns.value.filter(run => run.status === 'Pending')
+    if (activeTab.value === 'rejected') return payrollRuns.value.filter(run => run.status === 'Rejected')
+    if (activeTab.value === 'pending') return payrollRuns.value.filter(run => ['Pending', 'Pending Finance Approval'].includes(run.status))
     if (activeTab.value === 'approved') return payrollRuns.value.filter(run => run.status === 'Approved')
     return payrollRuns.value
 })
@@ -290,6 +293,7 @@ const filteredPayrollRuns = computed(() => {
 const getActionLabel = computed(() => {
     if (activeTab.value === 'payroll_runs') return 'View'
     if (activeTab.value === 'draft') return 'Open'
+    if (activeTab.value === 'rejected') return 'Open'
     if (activeTab.value === 'pending') return 'View'
     if (activeTab.value === 'approved') return 'View'
     return 'Open'
@@ -370,7 +374,9 @@ const getStatusClasses = (status) => {
     const map = {
         Completed: 'bg-green-100 text-green-800',
         Draft: 'bg-gray-200 text-gray-700',
+        Rejected: 'bg-red-100 text-red-800',
         Pending: 'bg-yellow-100 text-yellow-800',
+        'Pending Finance Approval': 'bg-amber-100 text-amber-800',
         Approved: 'bg-blue-100 text-blue-800'
     }
     return map[status] || 'bg-gray-100 text-gray-700'
@@ -380,7 +386,9 @@ const getStatusLabel = (status) => {
     const map = {
         Completed: 'Completed',
         Draft: 'Draft',
+        Rejected: 'Rejected',
         Pending: 'Draft Pending',
+        'Pending Finance Approval': 'Pending Finance Approval',
         Approved: 'Approved'
     }
     return map[status] || status
