@@ -29,21 +29,31 @@
                         <div v-show="activeTab === 'overview'" class="p-6">
                             <div class="space-y-8">
                         <div class="mb-8">
-                            <div class="grid grid-cols-5 gap-4">
+                            <div class="grid grid-cols-7 gap-4">
                                 <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Present Today</p>
+                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Present This Month</p>
                                     <p class="text-4xl font-bold text-[#0c8ce9]">{{ stats.presentToday }}</p>
                                     <p class="text-xs text-gray-500 mt-2">Employees</p>
                                 </div>
                                 <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Late Today</p>
+                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Late This Month</p>
                                     <p class="text-4xl font-bold text-yellow-500">{{ stats.lateToday }}</p>
                                     <p class="text-xs text-gray-500 mt-2">Employees</p>
                                 </div>
                                 <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">AWOL Today</p>
+                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">AWOL This Month</p>
                                     <p class="text-4xl font-bold text-red-500">{{ stats.awolToday }}</p>
                                     <p class="text-xs text-gray-500 mt-2">Employees</p>
+                                </div>
+                                <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">On Leave</p>
+                                    <p class="text-4xl font-bold text-blue-500">{{ stats.onLeaveToday }}</p>
+                                    <p class="text-xs text-gray-500 mt-2">Employees</p>
+                                </div>
+                                <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">No Attendance This Month</p>
+                                    <p class="text-4xl font-bold text-gray-500">{{ stats.noAttendanceToday }}</p>
+                                    <p class="text-xs text-gray-500 mt-2">Pending Log</p>
                                 </div>
                                 <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Missing Time-Out</p>
@@ -100,7 +110,43 @@
                                     <option value="present">Present</option>
                                     <option value="late">Late</option>
                                     <option value="awol">AWOL</option>
+                                    <option value="no_attendance">No Attendance</option>
+                                    <option value="on_leave">On Leave</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-6">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-sm font-semibold text-[#333333]">Present Day</h3>
+                                <p class="text-xs text-gray-500">{{ todayDateLabel }}</p>
+                            </div>
+
+                            <div class="bg-white rounded-lg border border-gray-100 p-5" v-if="todayDayRecord">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="flex-1">
+                                        <p class="text-sm font-semibold text-[#333333]">{{ formatDate(todayDayRecord.date) }} • {{ todayDayRecord.dayOfWeek }}</p>
+                                        <p class="text-xs text-gray-500 mt-1">{{ todayDayRecord.recordCount }} Records</p>
+                                        <div class="flex flex-wrap gap-2 mt-3">
+                                            <span v-if="todayDayRecord.presentCount > 0" class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-50 text-green-700">Present {{ todayDayRecord.presentCount }}</span>
+                                            <span v-if="todayDayRecord.lateCount > 0" class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-yellow-50 text-yellow-700">Late {{ todayDayRecord.lateCount }}</span>
+                                            <span v-if="todayDayRecord.awolCount > 0" class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-50 text-red-700">AWOL {{ todayDayRecord.awolCount }}</span>
+                                            <span v-if="todayDayRecord.onLeaveCount > 0" class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700">On Leave {{ todayDayRecord.onLeaveCount }}</span>
+                                            <span v-if="todayDayRecord.noAttendanceCount > 0" class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">No Attendance {{ todayDayRecord.noAttendanceCount }}</span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        @click="handleViewDay(todayDayRecord)"
+                                        class="px-5 py-2.5 bg-[#0c8ce9] text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors shrink-0"
+                                    >
+                                        View
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div v-else class="bg-white rounded-lg border border-gray-100 p-5">
+                                <p class="text-sm text-gray-600">Current date is outside the selected month/year.</p>
                             </div>
                         </div>
 
@@ -150,6 +196,20 @@
                                                     >
                                                         <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
                                                         AWOL {{ day.awolCount }}
+                                                    </span>
+                                                    <span 
+                                                        v-if="day.onLeaveCount > 0"
+                                                        class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700"
+                                                    >
+                                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm-1 14l-4-4 1.41-1.41L11 13.17l5.59-5.58L18 9l-7 7z"/></svg>
+                                                        On Leave {{ day.onLeaveCount }}
+                                                    </span>
+                                                    <span 
+                                                        v-if="day.noAttendanceCount > 0"
+                                                        class="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700"
+                                                    >
+                                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5h-2v7h2V7zm0 9h-2v2h2v-2z"/></svg>
+                                                        No Attendance {{ day.noAttendanceCount }}
                                                     </span>
                                                 </div>
                                             </div>
@@ -212,6 +272,8 @@
         presentToday: 0,
         lateToday: 0,
         awolToday: 0,
+        onLeaveToday: 0,
+        noAttendanceToday: 0,
         missingTimeOut: 0,
         overtimeHours: 0
     })
@@ -239,8 +301,30 @@
     // Computed: Filter days based on search and status
     const filteredDays = computed(() => days.value)
 
+    const todayDateKey = computed(() => {
+        return new Date().toISOString().split('T')[0]
+    })
+
+    const todayDateLabel = computed(() => {
+        return formatDate(todayDateKey.value)
+    })
+
+    const todayDayRecord = computed(() => {
+        return days.value.find(day => day.date === todayDateKey.value) || null
+    })
+
     // Helper: Get status color
-    const getStatusColor = () => 'bg-blue-500'
+    const getStatusColor = (status) => {
+        const classes = {
+            present: 'bg-green-500',
+            late: 'bg-yellow-500',
+            awol: 'bg-red-500',
+            on_leave: 'bg-blue-500',
+            no_attendance: 'bg-gray-500'
+        }
+
+        return classes[status] || 'bg-blue-500'
+    }
 
     // Helper: Format date to readable format
     const formatDate = (dateString) => {
@@ -283,6 +367,8 @@
                 presentToday: 0,
                 lateToday: 0,
                 awolToday: 0,
+                onLeaveToday: 0,
+                noAttendanceToday: 0,
                 missingTimeOut: 0,
                 overtimeHours: 0
             }
@@ -294,15 +380,19 @@
                 acc.present += day.presentCount || 0
                 acc.late += day.lateCount || 0
                 acc.awol += day.awolCount || 0
+                acc.onLeave += day.onLeaveCount || 0
+                acc.noAttendance += day.noAttendanceCount || 0
                 return acc
             },
-            { present: 0, late: 0, awol: 0 }
+            { present: 0, late: 0, awol: 0, onLeave: 0, noAttendance: 0 }
         )
 
         stats.value = {
             presentToday: totals.present,
             lateToday: totals.late,
             awolToday: totals.awol,
+            onLeaveToday: totals.onLeave,
+            noAttendanceToday: totals.noAttendance,
             missingTimeOut: 0,
             overtimeHours: 0
         }

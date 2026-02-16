@@ -244,11 +244,18 @@
                                             <th class="px-6 py-3 text-left font-semibold text-gray-700">Description</th>
                                             <th class="px-6 py-3 text-left font-semibold text-gray-700">Date Added</th>
                                             <th class="px-6 py-3 text-left font-semibold text-gray-700">Added By</th>
-                                            <th class="px-6 py-3 text-center font-semibold text-gray-700">Actions</th>
+                                            <th class="px-6 py-3 text-left font-semibold text-gray-700">Action Taken</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-200">
-                                        <tr class="hover:bg-gray-50">
+                                        <tr v-for="record in hrRecords" :key="record.id" class="hover:bg-gray-50">
+                                            <td class="px-6 py-3 text-gray-900 font-medium">{{ record.recordType }}</td>
+                                            <td class="px-6 py-3 text-gray-700">{{ record.description }}</td>
+                                            <td class="px-6 py-3 text-gray-700">{{ formatDate(record.dateAdded) }}</td>
+                                            <td class="px-6 py-3 text-gray-700">{{ record.addedBy || '--' }}</td>
+                                            <td class="px-6 py-3 text-gray-700">{{ record.actionTaken || '--' }}</td>
+                                        </tr>
+                                        <tr v-if="hrRecords.length === 0" class="hover:bg-gray-50">
                                             <td colspan="5" class="px-6 py-8 text-center text-gray-500">No records found</td>
                                         </tr>
                                     </tbody>
@@ -442,7 +449,7 @@
 </template>
 
 <script setup>
-    import { ref, onMounted } from 'vue'
+    import { ref, onMounted, watch } from 'vue'
     import { useRouter, useRoute } from 'vue-router'
     import axios from 'axios'
     import Swal from 'sweetalert2'
@@ -458,28 +465,29 @@
     const showEdit = ref(false)
     const showPromote = ref(false)
     const activeTab = ref('profile')
+    const hrRecords = ref([])
 
     const employee = ref({
-        account_id: 'EMP-2024-001',
-        name: 'Juan Carlos Dela Cruz',
-        email: 'juan.delacruz@eoshma.com',
-        phone: '+63 917 123 4567',
-        role: 'Senior Project Manager',
-        department: 'Operations',
-        status: 1,
-        location: 'Manila Head Office',
-        supervisor: 'Maria Santos',
-        payroll_group: 'Monthly - Management',
-        pay_type: 'Monthly',
-        payment_method: 'Bank Transfer',
-        tax_status: 'Married',
-        employee_type: 'Full-time',
-        work_schedule: 'Monday - Friday, 8:00 AM - 5:00 PM',
-        gender: 'Male',
-        date_of_birth: 'June 15, 1988',
-        address: '123 Makati Avenue, Makati City, Metro Manila',
-        username: 'jdelacruz',
-        created_at: '2022-01-15T08:00:00Z'
+        account_id: '',
+        name: 'N/A',
+        email: 'N/A',
+        phone: null,
+        role: null,
+        department: null,
+        status: 0,
+        location: null,
+        supervisor: null,
+        payroll_group: null,
+        pay_type: null,
+        payment_method: null,
+        tax_status: null,
+        employee_type: null,
+        work_schedule: null,
+        gender: null,
+        date_of_birth: null,
+        address: null,
+        username: null,
+        created_at: null
     })
 
     const editForm = ref({ ...employee.value })
@@ -525,6 +533,31 @@
             day: 'numeric'
         })
     }
+
+    const mapUserToEmployee = (user) => ({
+        account_id: user.account_id || '',
+        name: user.name || 'N/A',
+        email: user.email || 'N/A',
+        phone: user.phone || null,
+        role: user.role || null,
+        department: user.department || null,
+        status: Number(user.status ?? 0),
+        location: Array.isArray(user.branches) && user.branches.length
+            ? user.branches.join(', ')
+            : null,
+        supervisor: user.supervisor || null,
+        payroll_group: user.payroll_group || null,
+        pay_type: user.pay_type || null,
+        payment_method: user.payment_method || null,
+        tax_status: user.tax_status || null,
+        employee_type: user.employee_type || null,
+        work_schedule: user.work_schedule || null,
+        gender: user.gender || null,
+        date_of_birth: user.date_of_birth || null,
+        address: user.address || null,
+        username: user.username || null,
+        created_at: user.created_at || null,
+    })
 
     const openEditModal = () => {
         editForm.value = { ...employee.value }
@@ -601,13 +634,26 @@
         loading.value = true
         try {
             const accountId = route.params.id
-            // const response = await axios.get(
-            //     `/api/users/${accountId}`,
-            //     { headers: { Authorization: `Bearer ${auth.token}` } }
-            // )
+            const response = await axios.get('/api/users', {
+                headers: { Authorization: `Bearer ${auth.token}` }
+            })
 
-            // employee.value = response.data.data || response.data
-            // auth.pageTitle = employee.value.name
+            const users = response.data?.users || []
+            const matchedUser = users.find((user) => user.account_id === accountId)
+
+            if (!matchedUser) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Employee Not Found',
+                    text: 'The selected account could not be found.'
+                })
+                router.push('/accounts')
+                return
+            }
+
+            employee.value = mapUserToEmployee(matchedUser)
+            editForm.value = { ...employee.value }
+            auth.pageTitle = employee.value.name
         } catch (error) {
             console.error('Error fetching employee:', error)
             Swal.fire({
@@ -620,7 +666,34 @@
         }
     }
 
+    const fetchHrRecords = async () => {
+        try {
+            const accountId = route.params.id
+            const response = await axios.get(`/api/disciplinary/employee-records/${accountId}`)
+            hrRecords.value = response.data?.data || []
+        } catch (error) {
+            console.error('Error fetching HR records:', error)
+            hrRecords.value = []
+        }
+    }
+
+    watch(activeTab, (tab) => {
+        if (tab === 'records') {
+            fetchHrRecords()
+        }
+    })
+
+    watch(() => route.params.id, () => {
+        fetchEmployee()
+        if (activeTab.value === 'records') {
+            fetchHrRecords()
+        }
+    })
+
     onMounted(() => {
         fetchEmployee()
+        if (activeTab.value === 'records') {
+            fetchHrRecords()
+        }
     })
 </script>

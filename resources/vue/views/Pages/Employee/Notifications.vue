@@ -30,7 +30,7 @@
                                     @click="openNotification(item)"
                                     class="px-3 py-1 text-xs font-semibold text-white bg-[#0c8ce9] rounded hover:bg-blue-700"
                                 >
-                                    {{ item.kind === 'payslip_released' ? 'Open Payslip' : 'View' }}
+                                    {{ actionLabel(item) }}
                                 </button>
                             </div>
                         </div>
@@ -79,7 +79,29 @@ const openNotification = async (item) => {
         return
     }
 
+    if (item.leaveRequestId) {
+        const query = item.kind === 'leave_request_info_requested'
+            ? { mode: 'respond-info', fromNotification: '1' }
+            : { fromNotification: '1' }
+
+        router.push({ name: 'leave_request_detail', params: { id: item.leaveRequestId }, query })
+        return
+    }
+
+    if (item.disciplinaryComplaintId || String(item.kind || '').startsWith('disciplinary_complaint_')) {
+        router.push({ name: 'communications', query: { tab: 'hr', fromNotification: '1' } })
+        return
+    }
+
     await fetchNotifications()
+}
+
+const actionLabel = (item) => {
+    if (item.kind === 'payslip_released') return 'Open Payslip'
+    if (item.kind === 'leave_request_info_requested') return 'Respond'
+    if (item.leaveRequestId) return 'Open Request'
+    if (item.disciplinaryComplaintId || String(item.kind || '').startsWith('disciplinary_complaint_')) return 'Open'
+    return 'View'
 }
 
 const formatDateTime = (dateTime) => {

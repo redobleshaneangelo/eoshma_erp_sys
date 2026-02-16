@@ -16,6 +16,7 @@ use App\Models\UsersSalaryType;
 use App\Models\ChartAccount;
 use App\Models\ChartAccountTransaction;
 use App\Models\EmployeePayslip;
+use App\Models\LeaveRequest;
 use App\Notifications\PayslipReleasedNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -86,6 +87,7 @@ class PayrollRunController extends Controller
         $grouped = $rows->groupBy('employee_id')->map(function ($items) use ($payrollRun, $eligibility, $overtimeRequests, $overtimeRates) {
             $employee = $items->first()->employee;
             $totalMinutes = $this->totalMinutes($items);
+            $paidDays = $this->paidDaysCount($items);
             $employeeOvertime = $overtimeRequests->get($employee->id, collect());
             $hourlyRate = $employee->hourly_rate ?? $employee->rate;
             $overtimeHours = $employeeOvertime->sum(function ($item) {
@@ -104,7 +106,7 @@ class PayrollRunController extends Controller
                 'name' => $employee->name,
                 'role' => $employee->position,
                 'rate' => $employee->rate,
-                'daysLogged' => $items->count(),
+                'daysLogged' => $paidDays,
                 'totalHours' => round($totalMinutes / 60, 2),
                 'overtimeHours' => round($overtimeHours, 2),
                 'overtimePay' => round($overtimePay, 2),
@@ -641,7 +643,7 @@ class PayrollRunController extends Controller
 
             $totalMinutes = $this->totalMinutes($items);
             $totalHours = round($totalMinutes / 60, 2);
-            $daysLogged = $items->count();
+            $daysLogged = $this->paidDaysCount($items);
 
             $employee->loadMissing('user.salaryType');
             $salaryType = $employee->user?->salaryType?->salary_type ?? 'hour';
@@ -948,7 +950,7 @@ class PayrollRunController extends Controller
 
     private function attendanceRows(PayrollRun $payrollRun)
     {
-        return EmployeeAttendance::query()
+        $attendanceRows = EmployeeAttendance::query()
             ->with('employee')
             ->whereBetween('attendance_date', [$payrollRun->start_date, $payrollRun->end_date])
             ->when($payrollRun->payroll_group_id, function ($query) use ($payrollRun) {
@@ -963,11 +965,105 @@ class PayrollRunController extends Controller
             })
             ->orderBy('attendance_date')
             ->get();
+
+        $employees = EmployeeTest::query()
+            ->with('user')
+            ->when($payrollRun->payroll_group_id, function ($query) use ($payrollRun) {
+                $query->where('payroll_group_id', $payrollRun->payroll_group_id);
+            })
+            ->when($payrollRun->frequency, function ($query) use ($payrollRun) {
+                $query->where('payroll_frequency', $payrollRun->frequency);
+            })
+            ->get();
+
+        $employeesByUserId = $employees
+            ->filter(fn ($employee) => !empty($employee->user_id))
+            ->keyBy('user_id');
+
+        if ($employeesByUserId->isEmpty()) {
+            return $attendanceRows->map(function ($row) {
+                $row->is_leave = false;
+                return $row;
+            })->values();
+        }
+
+        $approvedLeaves = LeaveRequest::query()
+            ->where('status', 'approved')
+            ->whereIn('user_id', $employeesByUserId->keys()->all())
+            ->whereDate('start_date', '<=', $payrollRun->end_date)
+            ->whereDate('end_date', '>=', $payrollRun->start_date)
+            ->orderBy('start_date')
+            ->get();
+
+        $attendanceByKey = $attendanceRows->keyBy(function ($row) {
+            return $row->employee_id . '|' . $row->attendance_date->toDateString();
+        });
+
+        $periodStart = Carbon::parse($payrollRun->start_date);
+        $periodEnd = Carbon::parse($payrollRun->end_date);
+        $syntheticLeaveRows = collect();
+
+        foreach ($approvedLeaves as $leave) {
+            $employee = $employeesByUserId->get((int) $leave->user_id);
+            if (!$employee) {
+                continue;
+            }
+
+            $leaveStart = Carbon::parse($leave->start_date);
+            $leaveEnd = Carbon::parse($leave->end_date);
+
+            if ($leaveStart->lt($periodStart)) {
+                $leaveStart = $periodStart->copy();
+            }
+
+            if ($leaveEnd->gt($periodEnd)) {
+                $leaveEnd = $periodEnd->copy();
+            }
+
+            while ($leaveStart->lte($leaveEnd)) {
+                $date = $leaveStart->toDateString();
+                $key = $employee->id . '|' . $date;
+
+                if (!$attendanceByKey->has($key)) {
+                    $syntheticLeaveRows->push((object) [
+                        'employee_id' => $employee->id,
+                        'attendance_date' => Carbon::parse($date),
+                        'time_in' => null,
+                        'time_out' => null,
+                        'payroll_start' => $periodStart->copy(),
+                        'payroll_end' => $periodEnd->copy(),
+                        'employee' => $employee,
+                        'is_leave' => true,
+                    ]);
+                }
+
+                $leaveStart->addDay();
+            }
+        }
+
+        return $attendanceRows
+            ->map(function ($row) {
+                $row->is_leave = false;
+                return $row;
+            })
+            ->concat($syntheticLeaveRows)
+            ->sortBy(function ($row) {
+                $date = $row->attendance_date instanceof Carbon
+                    ? $row->attendance_date->toDateString()
+                    : Carbon::parse($row->attendance_date)->toDateString();
+
+                return $date . '|' . str_pad((string) $row->employee_id, 10, '0', STR_PAD_LEFT);
+            })
+            ->values();
     }
 
     private function totalMinutes($items): float
     {
         return $items->sum(function ($item) {
+            if ((bool) ($item->is_leave ?? false)) {
+                return 8 * 60;
+            }
+
             if (!$item->time_in || !$item->time_out) {
                 return 0;
             }
@@ -975,6 +1071,17 @@ class PayrollRunController extends Controller
             $end = Carbon::createFromFormat('H:i:s', $item->time_out);
             return $end->diffInMinutes($start, true);
         });
+    }
+
+    private function paidDaysCount($items): int
+    {
+        return (int) $items->filter(function ($item) {
+            if ((bool) ($item->is_leave ?? false)) {
+                return true;
+            }
+
+            return !empty($item->time_in) || !empty($item->time_out);
+        })->count();
     }
 
     private function basicPay(string $salaryType, float $rate, int $daysLogged, float $totalHours): float

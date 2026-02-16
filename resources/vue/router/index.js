@@ -44,8 +44,8 @@ import RecruitmentRequestDetail from '@/views/Pages/HR/Recruitment/RecruitmentRe
 import Disciplinary from '@/views/Pages/HR/Disciplinary/Disciplinary.vue'
 import DisciplinaryCreate from '@/views/Pages/HR/Disciplinary/DisciplinaryCreate.vue'
 import DisciplinaryDetail from '@/views/Pages/HR/Disciplinary/DisciplinaryDetail.vue'
-import EmployeeComplaints from '@/views/Pages/HR/Disciplinary/EmployeeComplaints.vue'
-import EmployeeComplaintsDetail from '@/views/Pages/HR/Disciplinary/EmployeeComplaintsDetail.vue'
+import EmployeeComplaints from '@/views/Pages/HR/Disciplinary/EmployeeComplaintsV2.vue'
+import EmployeeComplaintsDetail from '@/views/Pages/HR/Disciplinary/EmployeeComplaintsDetailV2.vue'
 
 import EmployeeClearance from '@/views/Pages/HR/Clearance/EmployeeClearance.vue'
 import EmployeeClearanceDetail from '@/views/Pages/HR/Clearance/EmployeeClearanceDetail.vue'
@@ -62,6 +62,7 @@ import PayrollConfiguration from '@/views/Pages/HR/Payroll/PayrollConfiguration.
 
 import LeaveAndAbsence from '@/views/Pages/HR/Leave and Absence/LeaveAndAbsence.vue'
 import LeaveRequestDetail from '@/views/Pages/HR/Leave and Absence/LeaveRequestDetail.vue'
+import LeaveConfiguration from '@/views/Pages/HR/Leave and Absence/LeaveConfiguration.vue'
 
 import PreviewReport from '@/views/Pages/HR/Reports/PreviewReport.vue'
 
@@ -204,6 +205,7 @@ const routes = [
 
     // Leave & Absence
     { path: '/leave-and-absence', name: 'leave_and_absence', component: LeaveAndAbsence, meta: { requiresAuth: true } },
+    { path: '/leave-and-absence/configuration', name: 'leave_configuration', component: LeaveConfiguration, meta: { requiresAuth: true } },
     { path: '/leave-and-absence/:id', name: 'leave_request_detail', component: LeaveRequestDetail, meta: { requiresAuth: true } },
 
     // Reports 

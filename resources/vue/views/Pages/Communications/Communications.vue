@@ -170,6 +170,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import axios from 'axios'
 import Swal from 'sweetalert2'
 import AuthLayout from '@/views/Layouts/AuthLayout.vue'
@@ -178,6 +179,7 @@ import SubmitComplaintModal from '@/components/HR/Disciplinary/SubmitComplaintMo
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
 
 const activeTab = ref('announcements')
 const showContactDropdown = ref(false)
@@ -232,10 +234,34 @@ const fetchBulletin = async () => {
 
 const fetchMyHrRequests = async () => {
     try {
-        const response = await axios.get('/api/communications/hr/requests', {
-            params: { mine: 1 }
-        })
-        myHrRequests.value = response.data?.data || []
+        const [leaveResponse, complaintResponse] = await Promise.all([
+            axios.get('/api/leave-requests'),
+            axios.get('/api/disciplinary/complaints')
+        ])
+
+        const leaveRows = leaveResponse.data?.data || []
+        const complaintRows = complaintResponse.data?.data || []
+
+        const mappedLeaveRows = leaveRows.map((item) => ({
+            id: `LEAVE-${item.id}`,
+            date: item.submissionDate || item.submission_date || item.created_at,
+            type: 'Leave Request',
+            subject: `${item.requestCode || `LR-${item.id}`} • ${item.leaveType || item.leave_type}`,
+            status: formatStatus(item.status),
+            details: item.reason || '--'
+        }))
+
+        const mappedComplaintRows = complaintRows.map((item) => ({
+            id: `COMPLAINT-${item.id}`,
+            date: item.createdAt,
+            type: 'Complaint',
+            subject: `${item.complaintCode || `DC-${item.id}`} • ${item.complaintType}`,
+            status: formatComplaintStatus(item.status),
+            details: item.description || '--'
+        }))
+
+        myHrRequests.value = [...mappedLeaveRows, ...mappedComplaintRows]
+            .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
     } catch {
         myHrRequests.value = []
     }
@@ -253,64 +279,101 @@ const selectContactAction = (action) => {
 }
 
 const handleSubmitLeaveRequest = (formData) => {
-    const newItem = {
-        id: `LEAVE-${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
-        type: 'Leave Request',
-        subject: `${formData.leaveType} (${formData.totalDays} day${formData.totalDays > 1 ? 's' : ''})`,
-        status: 'Pending',
-        details: formData.reason
-    }
-
-    myHrRequests.value.unshift(newItem)
-    showSubmitModal.value = false
-
-    Swal.fire({
-        icon: 'success',
-        title: 'Submitted',
-        text: 'Leave request submitted successfully.',
-        confirmButtonColor: '#0c8ce9'
-    })
+    submitLeaveRequest(formData)
 }
 
-const handleSubmitComplaint = (formData) => {
-    const involvedEmployee = formData.complaintAgainst === 'Others'
-        ? formData.complaintAgainstOther
-        : formData.complaintAgainst
+const submitLeaveRequest = async (formData) => {
+    try {
+        await axios.post('/api/leave-requests', {
+            leave_type: formData.leaveType,
+            start_date: formData.startDate,
+            end_date: formData.endDate,
+            total_days: formData.totalDays,
+            reason: formData.reason,
+            attachments: formData.attachments || []
+        })
 
-    const subjectSuffix = formData.employeeInvolved && involvedEmployee
-        ? ` vs ${involvedEmployee}`
-        : ''
+        showSubmitModal.value = false
+        await fetchMyHrRequests()
 
-    const newItem = {
-        id: `CMP-${Date.now()}`,
-        date: new Date().toISOString().split('T')[0],
-        type: 'Complaint',
-        subject: `${formData.complaintType}${subjectSuffix}`,
-        status: 'Pending',
-        details: formData.description
+        Swal.fire({
+            icon: 'success',
+            title: 'Submitted',
+            text: 'Leave request submitted successfully.',
+            confirmButtonColor: '#0c8ce9'
+        })
+    } catch (error) {
+        const message = error.response?.data?.message || 'Failed to submit leave request.'
+        Swal.fire({
+            icon: 'error',
+            title: 'Submit failed',
+            text: message,
+            confirmButtonColor: '#ef4444'
+        })
     }
+}
 
-    myHrRequests.value.unshift(newItem)
-    showComplaintModal.value = false
+const handleSubmitComplaint = async (formData) => {
+    try {
+        await axios.post('/api/disciplinary/complaints', {
+            complaint_type: formData.complaintType,
+            incident_date: formData.incidentDate,
+            department: formData.department,
+            employee_involved: formData.employeeInvolved,
+            complaint_against: formData.complaintAgainst,
+            complaint_against_other: formData.complaintAgainstOther,
+            description: formData.description,
+            attachments: formData.attachments || []
+        })
 
-    Swal.fire({
-        icon: 'success',
-        title: 'Submitted',
-        text: 'Complaint submitted successfully.',
-        confirmButtonColor: '#0c8ce9'
-    })
+        showComplaintModal.value = false
+        await fetchMyHrRequests()
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Submitted',
+            text: 'Complaint submitted successfully.',
+            confirmButtonColor: '#0c8ce9'
+        })
+    } catch (error) {
+        const message = error.response?.data?.message || 'Failed to submit complaint.'
+        Swal.fire({
+            icon: 'error',
+            title: 'Submit failed',
+            text: message,
+            confirmButtonColor: '#ef4444'
+        })
+    }
 }
 
 const getRequestStatusClasses = (status) => {
     const map = {
         Pending: 'bg-yellow-100 text-yellow-800',
+        Submitted: 'bg-blue-100 text-blue-800',
+        'Pending Manager Review': 'bg-yellow-100 text-yellow-800',
         Approved: 'bg-green-100 text-green-800',
+        Reviewed: 'bg-green-100 text-green-800',
         Rejected: 'bg-red-100 text-red-800',
         Resolved: 'bg-blue-100 text-blue-800'
     }
 
     return map[status] || 'bg-gray-100 text-gray-700'
+}
+
+const formatStatus = (status) => {
+    if (status === 'info_requested') return 'Info Requested'
+    return String(status || '').charAt(0).toUpperCase() + String(status || '').slice(1)
+}
+
+const formatComplaintStatus = (status) => {
+    const map = {
+        submitted: 'Submitted',
+        pending: 'Pending Manager Review',
+        reviewed: 'Reviewed',
+        rejected: 'Rejected'
+    }
+
+    return map[status] || formatStatus(status)
 }
 
 const formatDate = (date) => {
@@ -324,6 +387,12 @@ const formatDate = (date) => {
 
 onMounted(() => {
     auth.pageTitle = 'Communications'
+
+    const requestedTab = String(route.query.tab || '').toLowerCase()
+    if (['announcements', 'bulletin', 'hr'].includes(requestedTab)) {
+        activeTab.value = requestedTab
+    }
+
     fetchAnnouncements()
     fetchBulletin()
     fetchMyHrRequests()

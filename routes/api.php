@@ -17,6 +17,9 @@ use App\Http\Controllers\ChartAccountController;
 use App\Http\Controllers\EmployeeNotificationController;
 use App\Http\Controllers\EmployeePayslipController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\LeaveTypeController;
+use App\Http\Controllers\DisciplinaryComplaintController;
 
 
 /*
@@ -124,6 +127,27 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/employee/notifications/{notificationId}/read', [EmployeeNotificationController::class, 'markRead']);
     Route::get('/employee/payslips/{employeePayslip}', [EmployeePayslipController::class, 'showMine']);
     Route::get('/location/reverse', [LocationController::class, 'reverse']);
+
+    Route::get('/leave-requests', [LeaveRequestController::class, 'index']);
+    Route::post('/leave-requests', [LeaveRequestController::class, 'store']);
+    Route::get('/leave-requests/{leaveRequest}', [LeaveRequestController::class, 'show']);
+    Route::post('/leave-requests/{leaveRequest}/approve', [LeaveRequestController::class, 'approve']);
+    Route::post('/leave-requests/{leaveRequest}/reject', [LeaveRequestController::class, 'reject']);
+    Route::post('/leave-requests/{leaveRequest}/request-info', [LeaveRequestController::class, 'requestInfo']);
+    Route::post('/leave-requests/{leaveRequest}/respond-info', [LeaveRequestController::class, 'respondInfo']);
+
+    Route::get('/leave-types', [LeaveTypeController::class, 'index']);
+    Route::post('/leave-types', [LeaveTypeController::class, 'store']);
+    Route::put('/leave-types/{leaveType}', [LeaveTypeController::class, 'update']);
+    Route::delete('/leave-types/{leaveType}', [LeaveTypeController::class, 'destroy']);
+
+    Route::get('/disciplinary/complaints', [DisciplinaryComplaintController::class, 'index']);
+    Route::post('/disciplinary/complaints', [DisciplinaryComplaintController::class, 'store']);
+    Route::get('/disciplinary/complaints/{disciplinaryComplaint}', [DisciplinaryComplaintController::class, 'show']);
+    Route::post('/disciplinary/complaints/{disciplinaryComplaint}/approve', [DisciplinaryComplaintController::class, 'approve']);
+    Route::post('/disciplinary/complaints/{disciplinaryComplaint}/reject', [DisciplinaryComplaintController::class, 'reject']);
+    Route::post('/disciplinary/complaints/{disciplinaryComplaint}/take-action', [DisciplinaryComplaintController::class, 'takeAction']);
+    Route::get('/disciplinary/employee-records/{accountId}', [DisciplinaryComplaintController::class, 'employeeRecords']);
 
 
 

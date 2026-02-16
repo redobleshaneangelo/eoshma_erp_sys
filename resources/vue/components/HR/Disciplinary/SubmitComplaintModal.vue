@@ -67,16 +67,13 @@
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0c8ce9]"
                     >
                         <option value="">Select Employee</option>
-                        <option value="John Smith">John Smith</option>
-                        <option value="Jane Doe">Jane Doe</option>
-                        <option value="Bob Johnson">Bob Johnson</option>
-                        <option value="Alice Brown">Alice Brown</option>
-                        <option value="Charlie Wilson">Charlie Wilson</option>
-                        <option value="Diana Garcia">Diana Garcia</option>
-                        <option value="Edward Martinez">Edward Martinez</option>
-                        <option value="Fiona Anderson">Fiona Anderson</option>
-                        <option value="George Thomas">George Thomas</option>
-                        <option value="Helen White">Helen White</option>
+                        <option
+                            v-for="employee in employeeOptions"
+                            :key="employee.id"
+                            :value="employee.name"
+                        >
+                            {{ employee.name }}
+                        </option>
                         <option value="Others">Others</option>
                     </select>
                 </div>
@@ -162,12 +159,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import axios from 'axios'
 import Swal from 'sweetalert2'
 
 const emit = defineEmits(['close', 'submit'])
 
 const fileInput = ref(null)
+const employeeOptions = ref([])
 
 const formData = ref({
     complaintType: '',
@@ -189,6 +188,20 @@ const handleFileUpload = (event) => {
 
 const removeAttachment = (idx) => {
     formData.value.attachments.splice(idx, 1)
+}
+
+const fetchEmployees = async () => {
+    try {
+        const response = await axios.get('/api/users')
+        const users = response.data?.users || []
+        employeeOptions.value = users.map((user) => ({
+            id: user.id,
+            name: user.name
+        }))
+    } catch (error) {
+        console.error('Failed to load employee options', error)
+        employeeOptions.value = []
+    }
 }
 
 const submitComplaint = () => {
@@ -237,4 +250,8 @@ const submitComplaint = () => {
         attachments: formData.value.attachments
     })
 }
+
+onMounted(() => {
+    fetchEmployees()
+})
 </script>

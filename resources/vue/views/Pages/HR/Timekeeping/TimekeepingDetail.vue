@@ -33,7 +33,7 @@
                     </div>
 
                     <!-- Summary Cards -->
-                    <div class="grid grid-cols-4 gap-4 mb-8">
+                    <div class="grid grid-cols-6 gap-4 mb-8">
                         <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm">
                             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Total Records</p>
                             <p class="text-4xl font-bold text-[#0c8ce9]">{{ totalRecords }}</p>
@@ -54,6 +54,16 @@
                             <p class="text-4xl font-bold text-red-500">{{ awolCount }}</p>
                             <p class="text-xs text-gray-500 mt-2">Absent</p>
                         </div>
+                        <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">No Attendance</p>
+                            <p class="text-4xl font-bold text-gray-500">{{ noAttendanceCount }}</p>
+                            <p class="text-xs text-gray-500 mt-2">Not Yet Logged</p>
+                        </div>
+                        <div class="bg-white rounded-lg p-6 border border-gray-100 shadow-sm">
+                            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">On Leave</p>
+                            <p class="text-4xl font-bold text-blue-500">{{ onLeaveCount }}</p>
+                            <p class="text-xs text-gray-500 mt-2">Approved Leave</p>
+                        </div>
                     </div>
 
                     <!-- Filter and Search -->
@@ -73,6 +83,8 @@
                                 <option value="present">Present</option>
                                 <option value="late">Late</option>
                                 <option value="awol">AWOL</option>
+                                <option value="no_attendance">No Attendance</option>
+                                <option value="on_leave">On Leave</option>
                             </select>
                         </div>
                     </div>
@@ -97,6 +109,9 @@
                                         </th>
                                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
                                             Work Hours
+                                        </th>
+                                        <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                            Location
                                         </th>
                                         <th class="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
                                             Status
@@ -133,6 +148,13 @@
                                             <span v-else class="text-gray-400 italic">—</span>
                                         </td>
                                         <td class="px-6 py-4">
+                                            <div v-if="employee.timeInLocation || employee.timeOutLocation" class="text-xs text-gray-700 leading-5">
+                                                <div v-if="employee.timeInLocation"><span class="font-semibold">In:</span> {{ employee.timeInLocation }}</div>
+                                                <div v-if="employee.timeOutLocation"><span class="font-semibold">Out:</span> {{ employee.timeOutLocation }}</div>
+                                            </div>
+                                            <span v-else class="text-gray-400 italic">—</span>
+                                        </td>
+                                        <td class="px-6 py-4">
                                             <span
                                                 :class="getStatusBadgeClass(employee.status)"
                                                 class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold"
@@ -140,6 +162,8 @@
                                                 <svg v-if="employee.status === 'present'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
                                                 <svg v-else-if="employee.status === 'late'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
                                                 <svg v-else-if="employee.status === 'awol'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+                                                <svg v-else-if="employee.status === 'no_attendance'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 5h-2v7h2V7zm0 9h-2v2h2v-2z"/></svg>
+                                                <svg v-else-if="employee.status === 'on_leave'" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm-1 14l-4-4 1.41-1.41L11 13.17l5.59-5.58L18 9l-7 7z"/></svg>
                                                 {{ capitalizeStatus(employee.status) }}
                                             </span>
                                         </td>
@@ -240,7 +264,9 @@
     const summary = ref({
         presentCount: 0,
         lateCount: 0,
-        awolCount: 0
+        awolCount: 0,
+        noAttendanceCount: 0,
+        onLeaveCount: 0
     })
 
     const dateTitle = computed(() => {
@@ -255,7 +281,9 @@
     const presentCount = computed(() => summary.value.presentCount)
     const lateCount = computed(() => summary.value.lateCount)
     const awolCount = computed(() => summary.value.awolCount)
-    const totalRecords = computed(() => presentCount.value + lateCount.value + awolCount.value)
+    const noAttendanceCount = computed(() => summary.value.noAttendanceCount)
+    const onLeaveCount = computed(() => summary.value.onLeaveCount)
+    const totalRecords = computed(() => presentCount.value + lateCount.value + awolCount.value + noAttendanceCount.value + onLeaveCount.value)
 
     const visiblePages = computed(() => {
         const pages = []
@@ -287,18 +315,47 @@
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
     }
 
+    const formatLocationForExport = (employee) => {
+        const inLocation = employee?.timeInLocation
+        const outLocation = employee?.timeOutLocation
+
+        if (!inLocation && !outLocation) {
+            return '—'
+        }
+
+        if (inLocation && outLocation) {
+            return `In: ${inLocation} | Out: ${outLocation}`
+        }
+
+        if (inLocation) {
+            return `In: ${inLocation}`
+        }
+
+        return `Out: ${outLocation}`
+    }
+
     // Helper: Get status badge class
     const getStatusBadgeClass = (status) => {
         const classes = {
             present: 'bg-green-50 text-green-700',
             late: 'bg-yellow-50 text-yellow-700',
-            awol: 'bg-red-50 text-red-700'
+            awol: 'bg-red-50 text-red-700',
+            no_attendance: 'bg-gray-100 text-gray-700',
+            on_leave: 'bg-blue-50 text-blue-700'
         }
         return classes[status] || 'bg-gray-50 text-gray-700'
     }
 
     // Helper: Capitalize status
     const capitalizeStatus = (status) => {
+        if (status === 'on_leave') {
+            return 'On Leave'
+        }
+
+        if (status === 'no_attendance') {
+            return 'No Attendance'
+        }
+
         return status.charAt(0).toUpperCase() + status.slice(1)
     }
 
@@ -425,6 +482,7 @@
                                         <th>Time In</th>
                                         <th>Time Out</th>
                                         <th>Work Hours</th>
+                                        <th>Location</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
@@ -436,6 +494,7 @@
                                             <td>${emp.timeIn || '—'}</td>
                                             <td>${emp.timeOut || '—'}</td>
                                             <td>${(emp.timeIn && emp.timeOut) ? calculateWorkHours(emp.timeIn, emp.timeOut) : '—'}</td>
+                                            <td>${formatLocationForExport(emp)}</td>
                                             <td>${emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}</td>
                                         </tr>
                                     `).join('')}
@@ -542,6 +601,7 @@
                                         <th>Time In</th>
                                         <th>Time Out</th>
                                         <th>Work Hours</th>
+                                        <th>Location</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
@@ -553,6 +613,7 @@
                                             <td>${emp.timeIn || '—'}</td>
                                             <td>${emp.timeOut || '—'}</td>
                                             <td>${(emp.timeIn && emp.timeOut) ? calculateWorkHours(emp.timeIn, emp.timeOut) : '—'}</td>
+                                            <td>${formatLocationForExport(emp)}</td>
                                             <td>${emp.status.charAt(0).toUpperCase() + emp.status.slice(1)}</td>
                                         </tr>
                                     `).join('')}

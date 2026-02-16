@@ -59,11 +59,13 @@
                         required
                     >
                         <option value="">Select Leave Type</option>
-                        <option value="Sick Leave">Sick Leave</option>
-                        <option value="Vacation Leave">Vacation Leave</option>
-                        <option value="Emergency Leave">Emergency Leave</option>
-                        <option value="Personal Leave">Personal Leave</option>
-                        <option value="Others">Others (specify below)</option>
+                        <option
+                            v-for="leaveType in leaveTypeOptions"
+                            :key="leaveType"
+                            :value="leaveType"
+                        >
+                            {{ leaveType }}
+                        </option>
                     </select>
                     <p v-if="errors.leaveType" class="text-red-500 text-xs mt-1">{{ errors.leaveType }}</p>
                 </div>
@@ -88,23 +90,8 @@
                     </div>
 
                     <p v-else class="text-sm text-gray-600">
-                        Leave balance is not tracked for <span class="font-semibold">Others</span>. HR will review your request details.
+                        Selected leave type is not tracked yet. Please contact HR for entitlement setup.
                     </p>
-                </div>
-
-                <!-- Others Leave Type (if selected) -->
-                <div v-if="formData.leaveType === 'Others'">
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Others <span class="text-red-500">*</span>
-                    </label>
-                    <input
-                        v-model="formData.otherLeaveType"
-                        type="text"
-                        placeholder="Specify leave type to send to HR"
-                        class="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
-                        required
-                    />
-                    <p v-if="errors.otherLeaveType" class="text-red-500 text-xs mt-1">{{ errors.otherLeaveType }}</p>
                 </div>
 
                 <!-- Date Range Section -->
@@ -148,6 +135,7 @@
                             class="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-700 font-semibold cursor-not-allowed"
                         />
                         <p class="text-xs text-gray-500 mt-1">Auto-calculated</p>
+                        <p v-if="errors.totalDays" class="text-red-500 text-xs mt-1">{{ errors.totalDays }}</p>
                     </div>
                 </div>
 
@@ -238,6 +226,7 @@
 
 <script setup>
     import { computed, onMounted, ref } from 'vue'
+    import axios from 'axios'
     import { useAuthStore } from '@/stores/auth'
 
     const emit = defineEmits(['close', 'submit'])
@@ -259,45 +248,17 @@
 
     const errors = ref({})
 
-    const employees = {
-        'EMP-001': { name: 'John Smith', department: 'IT' },
-        'EMP-002': { name: 'Jane Doe', department: 'HR' },
-        'EMP-003': { name: 'Bob Johnson', department: 'Finance' },
-        'EMP-004': { name: 'Alice Brown', department: 'Sales' },
-        'EMP-005': { name: 'Charlie Wilson', department: 'Operations' },
-        'EMP-006': { name: 'Diana Garcia', department: 'IT' },
-        'EMP-007': { name: 'Edward Martinez', department: 'Finance' },
-        'EMP-008': { name: 'Fiona Anderson', department: 'Sales' },
-        'EMP-009': { name: 'George Thomas', department: 'IT' },
-        'EMP-010': { name: 'Helen White', department: 'HR' }
-    }
+    const leaveTypeOptions = ref([])
+    const leaveEntitlements = ref({})
 
-    const leaveEntitlements = {
-        'Vacation Leave': 12,
-        'Sick Leave': 10,
-        'Emergency Leave': 2,
-        'Personal Leave': 3
-    }
-
-    const employeeLeaveUsage = {
-        'EMP-001': { 'Vacation Leave': 4, 'Sick Leave': 2, 'Emergency Leave': 0, 'Personal Leave': 1 },
-        'EMP-002': { 'Vacation Leave': 3, 'Sick Leave': 1, 'Emergency Leave': 1, 'Personal Leave': 0 },
-        'EMP-003': { 'Vacation Leave': 5, 'Sick Leave': 2, 'Emergency Leave': 0, 'Personal Leave': 1 },
-        'EMP-004': { 'Vacation Leave': 2, 'Sick Leave': 0, 'Emergency Leave': 0, 'Personal Leave': 0 },
-        'EMP-005': { 'Vacation Leave': 6, 'Sick Leave': 3, 'Emergency Leave': 1, 'Personal Leave': 2 },
-        'EMP-006': { 'Vacation Leave': 1, 'Sick Leave': 1, 'Emergency Leave': 0, 'Personal Leave': 0 },
-        'EMP-007': { 'Vacation Leave': 4, 'Sick Leave': 2, 'Emergency Leave': 0, 'Personal Leave': 1 },
-        'EMP-008': { 'Vacation Leave': 2, 'Sick Leave': 1, 'Emergency Leave': 0, 'Personal Leave': 0 },
-        'EMP-009': { 'Vacation Leave': 3, 'Sick Leave': 4, 'Emergency Leave': 1, 'Personal Leave': 1 },
-        'EMP-010': { 'Vacation Leave': 2, 'Sick Leave': 1, 'Emergency Leave': 0, 'Personal Leave': 0 }
-    }
+    const leaveUsageByType = ref({})
 
     const showLeaveBalance = computed(() => {
-        return Boolean(formData.value.employeeId && formData.value.leaveType)
+        return Boolean(formData.value.leaveType)
     })
 
     const selectedTrackedLeaveType = computed(() => {
-        if (Object.prototype.hasOwnProperty.call(leaveEntitlements, formData.value.leaveType)) {
+        if (Object.prototype.hasOwnProperty.call(leaveEntitlements.value, formData.value.leaveType)) {
             return formData.value.leaveType
         }
 
@@ -306,13 +267,12 @@
 
     const selectedLeaveAnnual = computed(() => {
         if (!selectedTrackedLeaveType.value) return 0
-        return leaveEntitlements[selectedTrackedLeaveType.value] || 0
+        return leaveEntitlements.value[selectedTrackedLeaveType.value] || 0
     })
 
     const selectedLeaveUsed = computed(() => {
-        if (!selectedTrackedLeaveType.value || !formData.value.employeeId) return 0
-        const employeeUsage = employeeLeaveUsage[formData.value.employeeId] || {}
-        return employeeUsage[selectedTrackedLeaveType.value] || 0
+        if (!selectedTrackedLeaveType.value) return 0
+        return leaveUsageByType.value[selectedTrackedLeaveType.value] || 0
     })
 
     const selectedLeaveRemaining = computed(() => {
@@ -320,22 +280,81 @@
     })
 
     const currentUserName = computed(() => {
-        return auth.user?.name || auth.user?.user_name || 'Current User'
+        const firstName = String(auth.user?.first_name || '').trim()
+        const middleName = String(auth.user?.middle_name || '').trim()
+        const lastName = String(auth.user?.last_name || '').trim()
+
+        const fullName = [firstName, middleName, lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim()
+
+        return fullName || auth.user?.name || auth.user?.user_name || auth.user?.email || 'Current User'
     })
 
-    const resolveEmployeeKeyFromCurrentUser = () => {
-        const selectedName = String(currentUserName.value || '').trim().toLowerCase()
-        const match = Object.entries(employees).find(([, info]) => {
-            return String(info.name || '').trim().toLowerCase() === selectedName
+    const trackedLeaveTypes = computed(() => Object.keys(leaveEntitlements.value))
+    const countableStatuses = ['pending', 'approved', 'info_requested']
+
+    const fetchLeaveTypes = async () => {
+        try {
+            const response = await axios.get('/api/leave-types', {
+                params: { per_page: 200, status: 'active' }
+            })
+
+            const rows = response.data?.data || []
+            leaveTypeOptions.value = rows.map((item) => item.name)
+
+            leaveEntitlements.value = rows.reduce((acc, item) => {
+                acc[item.name] = Number(item.daysPerYear || 0)
+                return acc
+            }, {})
+        } catch (error) {
+            leaveTypeOptions.value = []
+            leaveEntitlements.value = {}
+            console.error('Failed to load leave type configuration', error)
+        }
+    }
+
+    const buildUsageMapFromRequests = (rows) => {
+        const nextUsage = trackedLeaveTypes.value.reduce((acc, type) => {
+            acc[type] = 0
+            return acc
+        }, {})
+
+        rows.forEach((item) => {
+            const status = String(item.status || '').toLowerCase()
+            if (!countableStatuses.includes(status)) {
+                return
+            }
+
+            const leaveType = item.leaveType || item.leave_type
+            if (!Object.prototype.hasOwnProperty.call(nextUsage, leaveType)) {
+                return
+            }
+
+            const totalDays = Number(item.totalDays ?? item.total_days ?? 0)
+            if (Number.isFinite(totalDays) && totalDays > 0) {
+                nextUsage[leaveType] += totalDays
+            }
         })
 
-        return match?.[0] || 'EMP-001'
+        leaveUsageByType.value = nextUsage
+    }
+
+    const fetchMyLeaveUsage = async () => {
+        try {
+            const response = await axios.get('/api/leave-requests')
+            const rows = response.data?.data || []
+            buildUsageMapFromRequests(rows)
+        } catch (error) {
+            buildUsageMapFromRequests([])
+            console.error('Failed to load leave balance usage', error)
+        }
     }
 
     const applyCurrentUserDefaults = () => {
-        const resolvedKey = resolveEmployeeKeyFromCurrentUser()
-        formData.value.employeeId = resolvedKey
-        formData.value.department = auth.department || employees[resolvedKey]?.department || ''
+        formData.value.employeeId = auth.user?.id || ''
+        formData.value.department = auth.department || auth.user?.dept_name || ''
     }
 
     const calculateTotalDays = () => {
@@ -409,10 +428,6 @@
             errors.value.leaveType = 'Leave type is required'
         }
 
-        if (formData.value.leaveType === 'Others' && !formData.value.otherLeaveType) {
-            errors.value.otherLeaveType = 'Please specify your leave type'
-        }
-
         if (!formData.value.startDate) {
             errors.value.startDate = 'Start date is required'
         }
@@ -425,19 +440,21 @@
             errors.value.reason = 'Reason is required'
         }
 
+        if (selectedTrackedLeaveType.value && Number(formData.value.totalDays || 0) > Number(selectedLeaveRemaining.value || 0)) {
+            errors.value.totalDays = `Requested days exceed your remaining ${selectedTrackedLeaveType.value} balance.`
+        }
+
         return Object.keys(errors.value).length === 0
     }
 
     const submitForm = () => {
         if (!validateForm()) return
 
-        const resolvedEmployeeKey = formData.value.employeeId || resolveEmployeeKeyFromCurrentUser()
-
         const submitData = {
-            employeeId: auth.user?.id ?? resolvedEmployeeKey,
+            employeeId: auth.user?.id ?? formData.value.employeeId,
             employeeName: currentUserName.value,
             department: formData.value.department,
-            leaveType: formData.value.leaveType === 'Others' ? formData.value.otherLeaveType : formData.value.leaveType,
+            leaveType: formData.value.leaveType,
             startDate: formData.value.startDate,
             endDate: formData.value.endDate,
             totalDays: formData.value.totalDays,
@@ -450,5 +467,7 @@
 
     onMounted(() => {
         applyCurrentUserDefaults()
+        fetchLeaveTypes()
+        fetchMyLeaveUsage()
     })
 </script>

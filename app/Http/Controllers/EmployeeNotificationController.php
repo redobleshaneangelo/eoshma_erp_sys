@@ -25,6 +25,12 @@ class EmployeeNotificationController extends Controller
                     'payrollRunName' => $notification->data['payroll_run_name'] ?? null,
                     'payslipId' => $notification->data['payslip_id'] ?? null,
                     'payDate' => $notification->data['pay_date'] ?? null,
+                    'leaveRequestId' => $notification->data['leave_request_id'] ?? null,
+                    'leaveRequestCode' => $notification->data['leave_request_code'] ?? null,
+                    'leaveType' => $notification->data['leave_type'] ?? null,
+                    'disciplinaryComplaintId' => $notification->data['disciplinary_complaint_id'] ?? null,
+                    'disciplinaryComplaintCode' => $notification->data['disciplinary_complaint_code'] ?? null,
+                    'action' => $notification->data['action'] ?? null,
                     'readAt' => optional($notification->read_at)?->toDateTimeString(),
                     'createdAt' => optional($notification->created_at)?->toDateTimeString()
                 ];
