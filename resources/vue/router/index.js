@@ -21,7 +21,7 @@ import Register from '@/views/Register.vue'
 */
 import Dashboard from '@/views/Pages/Dashboard.vue'
 import Attendace from '@/views/Pages/Attendance.vue'
-import Communications from '@/views/Pages/Communications.vue'
+import Communications from '@/views/Pages/Communications/Communications.vue'
 import PendingApproval from '@/views/Pages/PendingApprovals.vue'
 import PendingRequests from '@/views/Pages/PendingRequests.vue'
 import Reports from '@/views/Pages/Reports.vue'

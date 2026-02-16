@@ -3,19 +3,6 @@
         <div class="ps-60 bg-[#F3F4F6] min-h-screen">
             <div class="px-10 py-10">
 
-                    <!-- Action Button at Top -->
-                    <div class="mb-6 flex items-center justify-end">
-                        <button
-                            @click="openSubmitLeaveModal"
-                            class="px-6 py-2.5 bg-[#0c8ce9] text-white rounded-lg font-semibold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                            </svg>
-                            Submit Leave Request
-                        </button>
-                    </div>
-
                     <!-- Tab Navigation -->
                     <div class="bg-white border-b border-gray-200 rounded-t-lg mb-0">
                         <nav class="flex gap-0 px-6 py-0 overflow-x-auto">

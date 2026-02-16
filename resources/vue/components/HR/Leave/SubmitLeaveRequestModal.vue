@@ -24,24 +24,13 @@
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             Employee <span class="text-red-500">*</span>
                         </label>
-                        <select
-                            v-model="formData.employeeId"
-                            @change="updateDepartment"
-                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
-                            required
-                        >
-                            <option value="">Select Employee</option>
-                            <option value="EMP-001">John Smith (IT)</option>
-                            <option value="EMP-002">Jane Doe (HR)</option>
-                            <option value="EMP-003">Bob Johnson (Finance)</option>
-                            <option value="EMP-004">Alice Brown (Sales)</option>
-                            <option value="EMP-005">Charlie Wilson (Operations)</option>
-                            <option value="EMP-006">Diana Garcia (IT)</option>
-                            <option value="EMP-007">Edward Martinez (Finance)</option>
-                            <option value="EMP-008">Fiona Anderson (Sales)</option>
-                            <option value="EMP-009">George Thomas (IT)</option>
-                            <option value="EMP-010">Helen White (HR)</option>
-                        </select>
+                        <input
+                            type="text"
+                            :value="currentUserName"
+                            disabled
+                            class="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-700 cursor-not-allowed"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">Automatically set to your account</p>
                         <p v-if="errors.employeeId" class="text-red-500 text-xs mt-1">{{ errors.employeeId }}</p>
                     </div>
 
@@ -73,25 +62,49 @@
                         <option value="Sick Leave">Sick Leave</option>
                         <option value="Vacation Leave">Vacation Leave</option>
                         <option value="Emergency Leave">Emergency Leave</option>
-                        <option value="Unpaid Leave">Unpaid Leave</option>
-                        <option value="Custom Type">Custom Type (specify below)</option>
+                        <option value="Personal Leave">Personal Leave</option>
+                        <option value="Others">Others (specify below)</option>
                     </select>
                     <p v-if="errors.leaveType" class="text-red-500 text-xs mt-1">{{ errors.leaveType }}</p>
                 </div>
 
-                <!-- Custom Leave Type (if selected) -->
-                <div v-if="formData.leaveType === 'Custom Type'">
+                <!-- Leave Balance (View-Only) -->
+                <div v-if="showLeaveBalance" class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p class="text-sm font-semibold text-gray-800 mb-3">Leave Balance</p>
+
+                    <div v-if="selectedTrackedLeaveType" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-white border border-gray-200 rounded-lg px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-wide text-gray-500">Annual Allowance</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1">{{ selectedLeaveAnnual }} day(s)</p>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-lg px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-wide text-gray-500">Used</p>
+                            <p class="text-sm font-semibold text-gray-900 mt-1">{{ selectedLeaveUsed }} day(s)</p>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-lg px-3 py-2">
+                            <p class="text-[11px] uppercase tracking-wide text-gray-500">Remaining</p>
+                            <p class="text-sm font-semibold text-[#0c8ce9] mt-1">{{ selectedLeaveRemaining }} day(s)</p>
+                        </div>
+                    </div>
+
+                    <p v-else class="text-sm text-gray-600">
+                        Leave balance is not tracked for <span class="font-semibold">Others</span>. HR will review your request details.
+                    </p>
+                </div>
+
+                <!-- Others Leave Type (if selected) -->
+                <div v-if="formData.leaveType === 'Others'">
                     <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Custom Leave Type <span class="text-red-500">*</span>
+                        Others <span class="text-red-500">*</span>
                     </label>
                     <input
-                        v-model="formData.customLeaveType"
+                        v-model="formData.otherLeaveType"
                         type="text"
-                        placeholder="Specify custom leave type"
+                        placeholder="Specify leave type to send to HR"
                         class="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#0c8ce9] focus:border-transparent"
                         required
                     />
-                    <p v-if="errors.customLeaveType" class="text-red-500 text-xs mt-1">{{ errors.customLeaveType }}</p>
+                    <p v-if="errors.otherLeaveType" class="text-red-500 text-xs mt-1">{{ errors.otherLeaveType }}</p>
                 </div>
 
                 <!-- Date Range Section -->
@@ -224,9 +237,11 @@
 </template>
 
 <script setup>
-    import { ref } from 'vue'
+    import { computed, onMounted, ref } from 'vue'
+    import { useAuthStore } from '@/stores/auth'
 
     const emit = defineEmits(['close', 'submit'])
+    const auth = useAuthStore()
 
     const isDragging = ref(false)
 
@@ -234,7 +249,7 @@
         employeeId: '',
         department: '',
         leaveType: '',
-        customLeaveType: '',
+        otherLeaveType: '',
         startDate: '',
         endDate: '',
         totalDays: 0,
@@ -257,10 +272,70 @@
         'EMP-010': { name: 'Helen White', department: 'HR' }
     }
 
-    const updateDepartment = () => {
-        if (formData.value.employeeId && employees[formData.value.employeeId]) {
-            formData.value.department = employees[formData.value.employeeId].department
+    const leaveEntitlements = {
+        'Vacation Leave': 12,
+        'Sick Leave': 10,
+        'Emergency Leave': 2,
+        'Personal Leave': 3
+    }
+
+    const employeeLeaveUsage = {
+        'EMP-001': { 'Vacation Leave': 4, 'Sick Leave': 2, 'Emergency Leave': 0, 'Personal Leave': 1 },
+        'EMP-002': { 'Vacation Leave': 3, 'Sick Leave': 1, 'Emergency Leave': 1, 'Personal Leave': 0 },
+        'EMP-003': { 'Vacation Leave': 5, 'Sick Leave': 2, 'Emergency Leave': 0, 'Personal Leave': 1 },
+        'EMP-004': { 'Vacation Leave': 2, 'Sick Leave': 0, 'Emergency Leave': 0, 'Personal Leave': 0 },
+        'EMP-005': { 'Vacation Leave': 6, 'Sick Leave': 3, 'Emergency Leave': 1, 'Personal Leave': 2 },
+        'EMP-006': { 'Vacation Leave': 1, 'Sick Leave': 1, 'Emergency Leave': 0, 'Personal Leave': 0 },
+        'EMP-007': { 'Vacation Leave': 4, 'Sick Leave': 2, 'Emergency Leave': 0, 'Personal Leave': 1 },
+        'EMP-008': { 'Vacation Leave': 2, 'Sick Leave': 1, 'Emergency Leave': 0, 'Personal Leave': 0 },
+        'EMP-009': { 'Vacation Leave': 3, 'Sick Leave': 4, 'Emergency Leave': 1, 'Personal Leave': 1 },
+        'EMP-010': { 'Vacation Leave': 2, 'Sick Leave': 1, 'Emergency Leave': 0, 'Personal Leave': 0 }
+    }
+
+    const showLeaveBalance = computed(() => {
+        return Boolean(formData.value.employeeId && formData.value.leaveType)
+    })
+
+    const selectedTrackedLeaveType = computed(() => {
+        if (Object.prototype.hasOwnProperty.call(leaveEntitlements, formData.value.leaveType)) {
+            return formData.value.leaveType
         }
+
+        return null
+    })
+
+    const selectedLeaveAnnual = computed(() => {
+        if (!selectedTrackedLeaveType.value) return 0
+        return leaveEntitlements[selectedTrackedLeaveType.value] || 0
+    })
+
+    const selectedLeaveUsed = computed(() => {
+        if (!selectedTrackedLeaveType.value || !formData.value.employeeId) return 0
+        const employeeUsage = employeeLeaveUsage[formData.value.employeeId] || {}
+        return employeeUsage[selectedTrackedLeaveType.value] || 0
+    })
+
+    const selectedLeaveRemaining = computed(() => {
+        return Math.max(selectedLeaveAnnual.value - selectedLeaveUsed.value, 0)
+    })
+
+    const currentUserName = computed(() => {
+        return auth.user?.name || auth.user?.user_name || 'Current User'
+    })
+
+    const resolveEmployeeKeyFromCurrentUser = () => {
+        const selectedName = String(currentUserName.value || '').trim().toLowerCase()
+        const match = Object.entries(employees).find(([, info]) => {
+            return String(info.name || '').trim().toLowerCase() === selectedName
+        })
+
+        return match?.[0] || 'EMP-001'
+    }
+
+    const applyCurrentUserDefaults = () => {
+        const resolvedKey = resolveEmployeeKeyFromCurrentUser()
+        formData.value.employeeId = resolvedKey
+        formData.value.department = auth.department || employees[resolvedKey]?.department || ''
     }
 
     const calculateTotalDays = () => {
@@ -334,8 +409,8 @@
             errors.value.leaveType = 'Leave type is required'
         }
 
-        if (formData.value.leaveType === 'Custom Type' && !formData.value.customLeaveType) {
-            errors.value.customLeaveType = 'Custom leave type is required'
+        if (formData.value.leaveType === 'Others' && !formData.value.otherLeaveType) {
+            errors.value.otherLeaveType = 'Please specify your leave type'
         }
 
         if (!formData.value.startDate) {
@@ -356,11 +431,13 @@
     const submitForm = () => {
         if (!validateForm()) return
 
+        const resolvedEmployeeKey = formData.value.employeeId || resolveEmployeeKeyFromCurrentUser()
+
         const submitData = {
-            employeeId: formData.value.employeeId,
-            employeeName: employees[formData.value.employeeId].name,
+            employeeId: auth.user?.id ?? resolvedEmployeeKey,
+            employeeName: currentUserName.value,
             department: formData.value.department,
-            leaveType: formData.value.leaveType === 'Custom Type' ? formData.value.customLeaveType : formData.value.leaveType,
+            leaveType: formData.value.leaveType === 'Others' ? formData.value.otherLeaveType : formData.value.leaveType,
             startDate: formData.value.startDate,
             endDate: formData.value.endDate,
             totalDays: formData.value.totalDays,
@@ -370,4 +447,8 @@
 
         emit('submit', submitData)
     }
+
+    onMounted(() => {
+        applyCurrentUserDefaults()
+    })
 </script>
