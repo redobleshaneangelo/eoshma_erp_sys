@@ -18,19 +18,9 @@
                         <h1 class="text-3xl font-bold text-gray-900">{{ run.name }}</h1>
                         <p class="text-sm text-gray-600 mt-1">{{ run.group }}</p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold" :class="getStatusClasses(run.status)">
-                            {{ run.status }}
-                        </span>
-                        <button
-                            v-if="isRejected && run.rejectReason"
-                            type="button"
-                            @click="showRejectionReason"
-                            class="px-3 py-1 text-xs font-semibold text-red-700 border border-red-200 rounded hover:bg-red-50"
-                        >
-                            Rejection Reason
-                        </button>
-                    </div>
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold" :class="getStatusClasses(run.status)">
+                        {{ run.status }}
+                    </span>
                 </div>
             </div>
 
@@ -459,6 +449,13 @@
             <div class="flex flex-wrap justify-end gap-3" v-if="showPrimaryAction || (isPendingDraft && isApprovalMode && !isViewOnly) || (isPendingDraft && isEligibilityMode && !isViewOnly) || (isPendingFinance && isFinanceApprovalMode && !isViewOnly)">
                 <button
                     v-if="isPendingDraft && isEligibilityMode && !isViewOnly"
+                    @click="hrRejectPayroll"
+                    class="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                >
+                    Reject Payroll
+                </button>
+                <button
+                    v-if="isPendingDraft && isEligibilityMode && !isViewOnly"
                     @click="sendToFinanceApproval"
                     class="px-4 py-2 text-sm font-semibold text-white bg-[#0c8ce9] rounded-lg hover:bg-blue-700 transition-colors"
                 >
@@ -484,6 +481,13 @@
                     class="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
                 >
                     Approve Payroll
+                </button>
+                <button
+                    v-if="showPrimaryAction && isRejected && run.rejectReason"
+                    @click="showRejectionReason"
+                    class="px-4 py-2 text-sm font-semibold text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                >
+                    Rejection Reason
                 </button>
                 <button
                     v-if="showPrimaryAction"
@@ -653,6 +657,7 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const runId = Number(route.params.id)
+const hasAutoShownRejectionReason = ref(false)
 
 onMounted(() => {
     auth.pageTitle = 'Payroll Run'
@@ -827,6 +832,61 @@ const sendToFinanceApproval = async () => {
         Swal.fire({
             icon: 'error',
             title: 'Send failed',
+            text: message,
+            confirmButtonColor: '#ef4444'
+        })
+    }
+}
+
+const hrRejectPayroll = async () => {
+    const result = await Swal.fire({
+        title: 'Reject payroll?',
+        text: 'This payroll run will be moved to HR Payroll Rejected tab.',
+        icon: 'warning',
+        input: 'textarea',
+        inputLabel: 'Rejection Reason',
+        inputPlaceholder: 'Enter reason for rejection...',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Yes, reject',
+        preConfirm: (value) => {
+            if (!value || !value.trim()) {
+                Swal.showValidationMessage('Rejection reason is required.')
+                return null
+            }
+
+            return value.trim()
+        }
+    })
+
+    if (!result.isConfirmed) return
+
+    try {
+        const response = await axios.post(`/api/payroll-runs/${runId}/reject`, {
+            reason: result.value
+        })
+        const payload = response.data?.data
+        if (payload) {
+            run.value = normalizeRun(payload)
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'Payroll rejected',
+            showConfirmButton: false,
+            timer: 2200
+        })
+
+        await router.push({ name: 'payroll', query: { tab: 'rejected' } })
+    } catch (error) {
+        console.error('Failed to reject payroll in HR review', error)
+        const message = error.response?.data?.message || 'Failed to reject payroll.'
+        Swal.fire({
+            icon: 'error',
+            title: 'Rejection failed',
             text: message,
             confirmButtonColor: '#ef4444'
         })
@@ -1046,10 +1106,22 @@ const fetchRun = async () => {
         const payload = response.data?.data
         if (payload) {
             run.value = normalizeRun(payload)
+            maybeAutoShowRejectionReason()
         }
     } catch (error) {
         console.error('Failed to load payroll run', error)
     }
+}
+
+const maybeAutoShowRejectionReason = () => {
+    if (hasAutoShownRejectionReason.value) return
+
+    if (String(route.query?.fromTab || '') !== 'rejected') return
+    if (run.value.status !== 'Rejected') return
+    if (!run.value.rejectReason) return
+
+    hasAutoShownRejectionReason.value = true
+    showRejectionReason()
 }
 
 const mapAttendance = (payload) => ({

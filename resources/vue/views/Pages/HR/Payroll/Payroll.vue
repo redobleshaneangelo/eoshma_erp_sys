@@ -354,7 +354,11 @@ const openPayrollRun = (run) => {
         router.push({ name: 'payroll_run_view', params: { id: run.id } })
         return
     }
-    router.push({ name: 'payroll_run_detail', params: { id: run.id } })
+    router.push({
+        name: 'payroll_run_detail',
+        params: { id: run.id },
+        query: { fromTab: activeTab.value }
+    })
 }
 
 const closeCreateModal = () => {
