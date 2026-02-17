@@ -20,6 +20,8 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\LeaveRequestController;
 use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\DisciplinaryComplaintController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceClientController;
 
 
 /*
@@ -122,6 +124,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/chart-accounts', [ChartAccountController::class, 'index']);
     Route::post('/chart-accounts', [ChartAccountController::class, 'store']);
+
+    Route::get('/invoice-clients', [InvoiceClientController::class, 'index']);
+    Route::post('/invoice-clients', [InvoiceClientController::class, 'store']);
+
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::post('/invoices', [InvoiceController::class, 'store']);
+    Route::get('/invoices/{invoice}', [InvoiceController::class, 'show']);
+    Route::get('/invoices/{invoice}/payments', [InvoiceController::class, 'payments']);
+    Route::post('/invoices/{invoice}/payments', [InvoiceController::class, 'storePayment']);
+    Route::get('/invoices-history/{module}/{invoiceNo}', [InvoiceController::class, 'history']);
 
     Route::get('/employee/notifications', [EmployeeNotificationController::class, 'index']);
     Route::post('/employee/notifications/{notificationId}/read', [EmployeeNotificationController::class, 'markRead']);

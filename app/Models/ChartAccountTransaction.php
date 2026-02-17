@@ -15,6 +15,9 @@ class ChartAccountTransaction extends Model
     protected $fillable = [
         'chart_account_id',
         'payroll_run_id',
+        'source_type',
+        'source_id',
+        'source_event',
         'transaction_date',
         'description',
         'reference',

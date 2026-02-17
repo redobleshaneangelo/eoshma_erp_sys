@@ -17,6 +17,9 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             ChartAccountSeeder::class,
+            InvoiceClientSeeder::class,
+            InvoiceDropdownAccountSeeder::class,
+            InvoiceSeeder::class,
         ]);
 
         // User::factory()->create([

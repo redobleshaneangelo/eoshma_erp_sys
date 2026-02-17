@@ -85,6 +85,7 @@ import ProjectsList from '@/views/Pages/FRM/Project Finance/ProjectsList.vue'
 import ProjectFinancialsView from '@/views/Pages/FRM/Project Finance/ProjectFinancialsView.vue'
 
 import FinancialReportPreview from '@/views/Pages/FRM/Reports/FinancialReportPreview.vue'
+import InvoicePaymentHistoryView from '@/views/Pages/FRM/InvoicePaymentHistoryView.vue'
 
 import PendingApprovalsFinancePrebiddings from '@/views/Pages/FRM/Pending Approvals/PendingApprovalDetailPrebiddings.vue'
 
@@ -232,6 +233,9 @@ const routes = [
     
     // Receivables
     { path: '/receivables', name: 'receivables', component: Receivables, meta: { requiresAuth: true } },
+
+    // Invoice Payment History
+    { path: '/finance/invoice-payments/:module/:invoiceNo', name: 'invoice_payment_history', component: InvoicePaymentHistoryView, meta: { requiresAuth: true } },
     
     // Cash Flow
     { path: '/cashflow', name: 'cashflow', component: CashFlow, meta: { requiresAuth: true } },
